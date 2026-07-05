@@ -10,8 +10,8 @@
   <header class="site-header">
     <div class="commit-banner">
       <strong>source_commit:</strong>
-      <code id="source-commit">640c374459f847997859c35f0b300394c56989a4</code>
-      <span class="generated-at">gerado em 2026-07-05T16:00:10.674Z</span>
+      <code id="source-commit">2389e565277d8e865686784734d93a018293eac5</code>
+      <span class="generated-at">gerado em 2026-07-05T16:01:53.860Z</span>
     </div>
     <h1>Sistema de Webhooks — Design Docs</h1>
   </header>
@@ -93,7 +93,7 @@
 </li>
 <li><p><strong>Semântica de entrega</strong> — At-least-once com <code>X-Event-Id</code>; deduplicação no cliente (<a href="./adrs/ADR-005-at-least-once-x-event-id.md">ADR-005</a>).</p>
 </li>
-<li><p><strong>Organização do código</strong> — Módulo <code>src/modules/webhooks</code> seguindo convenções do OMS; integração mínima em <code>changeStatus</code> (<a href="./adrs/ADR-006-reuso-padroes-projeto.md">ADR-006</a>).</p>
+<li><p><strong>Organização do código</strong> — Módulo <code>src/modules/webhooks/</code> <strong>(a criar na implementação)</strong>, seguindo convenções do OMS; integração mínima em <code>changeStatus</code> (<a href="./adrs/ADR-006-reuso-padroes-projeto.md">ADR-006</a>).</p>
 </li>
 </ol>
 <h3>API de configuração e operação</h3>

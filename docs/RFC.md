@@ -59,7 +59,7 @@ A solução separa **registro do evento** (síncrono, transacional, dentro do do
 
 5. **Semântica de entrega** — At-least-once com `X-Event-Id`; deduplicação no cliente ([ADR-005](./adrs/ADR-005-at-least-once-x-event-id.md)).
 
-6. **Organização do código** — Módulo `src/modules/webhooks` seguindo convenções do OMS; integração mínima em `changeStatus` ([ADR-006](./adrs/ADR-006-reuso-padroes-projeto.md)).
+6. **Organização do código** — Módulo `src/modules/webhooks/` **(a criar na implementação)**, seguindo convenções do OMS; integração mínima em `changeStatus` ([ADR-006](./adrs/ADR-006-reuso-padroes-projeto.md)).
 
 ### API de configuração e operação
 

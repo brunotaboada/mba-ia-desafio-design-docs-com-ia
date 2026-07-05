@@ -34,7 +34,7 @@ Segui a ordem sugerida pelo enunciado, com o Tracker crescendo a cada documento:
 3. **RFC** — Proposta concisa referenciando ADRs; alternativas descartadas e questões em aberto da reunião.
 4. **FDD** — Contratos HTTP, fluxos outbox/worker/retry/DLQ, matriz `WEBHOOK_*`, integração com 10 arquivos reais.
 5. **PRD** — Consolidação de negócio (10 FRs, 10 NFRs, métricas, riscos) com base nos docs técnicos.
-6. **Tracker** — ~164 linhas ligando itens a `[hh:mm] Nome` ou caminho de código.
+6. **Tracker** — ~165 linhas ligando itens a `[hh:mm] Nome` ou caminho de código.
 7. **README do processo** — Este arquivo, após revisão da checklist.
 8. **Parte 2** — Site HTML, `npm run docs:update`, demonstração com `fase-2/`.
 
@@ -44,36 +44,117 @@ Interação com a IA: prompts **dirigidos** (com trechos da transcrição e path
 
 ## Prompts customizados
 
-### 1. Contextualização inicial (mapa transcrição + código)
+Prompts que usei no Cursor, um artefato por vez. Cada um recebe contexto concreto: trecho da transcrição, path de arquivo ou número do ADR.
+
+### 1. Mapa transcrição + código
 
 ```
 Leia TRANSCRICAO.md e o código em src/modules/orders/, src/shared/errors/,
 src/middlewares/ e prisma/schema.prisma.
 
-Produza um mapa estruturado com:
-1) As 6 decisões principais da reunião (outbox, worker, retry/DLQ, HMAC, at-least-once, reuso de padrões)
+Monte um mapa com:
+1) As 6 decisões principais (outbox, worker, retry/DLQ, HMAC, at-least-once, reuso de padrões)
 2) Decisões secundárias (payload, headers, timeouts)
-3) Itens explicitamente FORA DE ESCOPO ou adiados (com timestamp e falante)
-4) Questões em aberto não decididas
-5) Para cada decisão: gancho no código existente (arquivo + método/classe)
+3) O que ficou fora de escopo ou foi adiado — com [hh:mm] e nome de quem falou
+4) Questões em aberto
+5) Para cada decisão: onde isso encaixa no código (arquivo + método/classe)
 
-Não invente requisitos. Se não houver origem na transcrição ou no código, marque como "sem fonte".
+Só entra no mapa o que tiver fonte na transcrição ou no repositório.
 ```
 
-### 2. Alinhamento do FDD à rubrica do desafio
+### 2. ADR por decisão da reunião
 
 ```
-Revise docs/FDD.md contra a rubrica literal do ENUNCIADO.md (requisito 3 e critérios de aceite).
+Decisão: {nome} — citada em [{hh:mm}] {falante} na TRANSCRICAO.md.
+Arquivo: docs/adrs/ADR-{NNN}-{slug-kebab}.md
 
-Garanta:
-- Seções obrigatórias com os títulos exatos da rubrica
-- "Integração com o sistema existente" com ≥4 caminhos reais em src/ ou prisma/
-- Matriz de erros com prefixo WEBHOOK_
-- ≥4 endpoints HTTP com request/response de exemplo e status codes
-- Observabilidade com métricas, logs e tracing
+Seções: Status, Contexto, Decisão, Alternativas Consideradas,
+Consequências (### Positivas / ### Negativas).
 
-Remova qualquer seção meta (discrepâncias curso vs rubrica, notas ao avaliador).
-Não duplique o nível de detalhe do RFC.
+- Contexto: problema de negócio + restrição do time, com o timestamp
+- Alternativas: no máximo 3; pelo menos 1 veio da reunião
+- Decisão: um parágrafo; sem código nem contratos HTTP (isso vai no FDD)
+- Consequências: trade-off explícito
+- Referenciar pelo menos um arquivo do repo (ex.: changeStatus em order.service.ts,
+  AppError, requireRole)
+- Títulos em português (Contexto, Decisão — não Context / Decision)
+
+Cobrir as 6 decisões principais + snapshot de payload (ADR-007).
+```
+
+### 3. Links entre ADRs (`adr-linker`)
+
+```
+Leia docs/adrs/ADR-*.md e adicione no cabeçalho de cada arquivo:
+
+- **Depends on:** ADRs dos quais este depende (menção explícita no texto)
+- **Used by:** ADRs que dependem deste (bidirecional)
+- **Related to:** decisões do mesmo fluxo, sem dependência direta
+
+Regras:
+- Link só com evidência no Contexto ou na Decisão (ex.: "outbox adotado (ADR-001)")
+- Máximo 3 Depends on e 3 Related to por ADR
+- Caminho relativo: ./ADR-NNN-slug.md
+- Salvar relatório em docs/adrs/reports/adr-link-report-{data}.md
+  (pares encontrados, links quebrados, dependências circulares)
+
+Relações que devem aparecer:
+- ADR-002 Depends on ADR-001; ADR-003 Depends on ADR-002
+- ADR-007 Depends on ADR-001
+- ADR-003 ↔ ADR-005 (retry/DLQ e at-least-once)
+- ADR-004 ↔ ADR-005 (HMAC e X-Event-Id)
+- ADR-002 ↔ ADR-006 (worker e padrões do projeto)
+```
+
+### 4. FDD a partir dos ADRs
+
+```
+Com os ADRs 001–007, o RFC e o mapa de contextualização, escreva docs/FDD.md.
+
+Obrigatório:
+- Contratos HTTP: CRUD de webhooks, histórico, replay DLQ, DELETE /api/webhooks/:id
+  (auth, request/response JSON, status codes)
+- Fluxo: changeStatus → publishWebhookEvent(tx) na mesma $transaction → worker → POST com HMAC
+- Matriz WEBHOOK_* alinhada a AppError / http-errors
+- Resiliência: backoff, DLQ, replay ADMIN, rotação de secret (grace 24h)
+- Integração: paths reais em src/ e prisma/;
+  src/modules/webhooks/, webhook.errors.ts e src/worker.ts → "(a criar na implementação)"
+- Observabilidade: latência p95, taxa de sucesso, backlog outbox/DLQ, logs Pino, tracing
+
+Nível de implementação, não de arquitetura. Cada afirmação com ADR, transcrição ou arquivo.
+```
+
+### 5. Linhas no Tracker
+
+```
+Para cada item novo em {PRD | RFC | FDD | ADR-NNN}, adicione uma linha em docs/TRACKER.md:
+
+| ID | Documento | Tipo | Conteúdo (resumo) | Fonte | Localização |
+
+- IDs: PRD-FR-01, RFC-ALT-02, FDD-CON-03, ADR-003-DEC-01, FDD-ERR-05
+- TRANSCRICAO → [hh:mm] Nome (conferir em TRANSCRICAO.md)
+- CODIGO → caminho completo (ex.: src/modules/orders/order.service.ts)
+- Uma linha por requisito, decisão, endpoint, erro WEBHOOK_* e ponto de integração
+- Sem linha se não houver fonte verificável
+```
+
+### 6. Atualização por diff (Parte 2)
+
+Prompt base em `scripts/docs/prompts/update-doc.txt`, usado pelo `npm run docs:update`.
+O script anexa o diff, linhas do Tracker com `Fonte=CODIGO` e o markdown atual do arquivo.
+
+```
+Arquivo: {docPath}
+Diff e Tracker anexados abaixo.
+
+Atualize somente o que o diff exige. Preserve títulos, estrutura e tom.
+
+Se order.status.ts ganhar SHIPPED → CANCELLED:
+- FDD: fluxos, integração e payloads com essa transição
+- ADRs que citam order.status.ts: pares origem/destino corretos
+- Nada pode dizer que SHIPPED só vai para DELIVERED
+
+Saída: markdown completo do arquivo.
 ```
 
 ---
@@ -90,7 +171,7 @@ Foram **5 ciclos principais** de geração → revisão → correção:
 
 4. **FDD — rubrica literal** — Ajuste de títulos e inclusão explícita de Matriz de erros, Estratégias de resiliência e Integração com 10 arquivos do código base.
 
-5. **Tracker — cobertura** — Expandido de ~60 para **164 linhas** ao produzir RFC, FDD e PRD; validação de que itens sem `[hh:mm]` ou path real foram corrigidos ou removidos dos docs.
+5. **Tracker — cobertura** — Expandido de ~60 para **165 linhas** ao produzir RFC, FDD e PRD; validação de que itens sem `[hh:mm]` ou path real foram corrigidos ou removidos dos docs.
 
 ---
 
@@ -114,23 +195,23 @@ Foram **5 ciclos principais** de geração → revisão → correção:
 ├── README.md                 ← este arquivo (processo)
 ├── ENUNCIADO.md              ← enunciado original do desafio
 ├── TRANSCRICAO.md            ← transcrição da reunião (intocada)
-├── fase-2/                 ← patch da demonstração Parte 2
+├── fase-2/                   ← patch da demonstração Parte 2
 ├── docs/
 │   ├── PRD.md
 │   ├── RFC.md
 │   ├── FDD.md
 │   ├── TRACKER.md
 │   ├── adrs/
-│   └── site/               ← HTML + docs-meta.json (Parte 2)
-├── scripts/docs/           ← gerador e auto-atualização
-│       ├── ADR-001-outbox-no-mysql.md
-│       ├── ADR-002-worker-polling-processo-separado.md
-│       ├── ADR-003-retry-backoff-dlq.md
-│       ├── ADR-004-hmac-sha256-secret-por-endpoint.md
-│       ├── ADR-005-at-least-once-x-event-id.md
-│       ├── ADR-006-reuso-padroes-projeto.md
-│       └── ADR-007-payload-snapshot-na-insercao.md
-├── src/                      ← código de referência (não alterado)
+│   │   ├── ADR-001-outbox-no-mysql.md
+│   │   ├── ADR-002-worker-polling-processo-separado.md
+│   │   ├── ADR-003-retry-backoff-dlq.md
+│   │   ├── ADR-004-hmac-sha256-secret-por-endpoint.md
+│   │   ├── ADR-005-at-least-once-x-event-id.md
+│   │   ├── ADR-006-reuso-padroes-projeto.md
+│   │   └── ADR-007-payload-snapshot-na-insercao.md
+│   └── site/                 ← HTML + docs-meta.json (Parte 2)
+├── scripts/docs/             ← gerador e auto-atualização
+├── src/                      ← código de referência (patch fase-2 em order.status.ts)
 ├── prisma/
 └── tests/
 ```
@@ -143,7 +224,7 @@ Foram **5 ciclos principais** de geração → revisão → correção:
 | RFC — alternativas, questões em aberto, links para ADRs | ✅ |
 | FDD — ≥4 endpoints, `WEBHOOK_*`, integração ≥4 arquivos, observabilidade | ✅ |
 | ADRs — 7 arquivos, 6/6 decisões principais, referências ao código | ✅ |
-| Tracker — 164 linhas; 88% TRANSCRICAO; 19 linhas CODIGO | ✅ |
+| Tracker — 165 linhas; 88% TRANSCRICAO; 20 linhas CODIGO | ✅ |
 | README — processo documentado | ✅ |
 | Consistência — paths citados existem no repo | ✅ |
 
@@ -253,4 +334,4 @@ Código do mecanismo: `scripts/docs/` (versionado no repositório).
 
 ---
 
-*Branch de entrega: `cursor/design-docs-webhooks-74ed`*
+*Entrega na branch `main`.*
