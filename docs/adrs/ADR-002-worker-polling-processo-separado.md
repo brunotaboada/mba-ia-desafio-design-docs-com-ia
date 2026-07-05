@@ -1,50 +1,62 @@
 # ADR-002: Worker em Processo Separado com Polling
 
-## Status
+**Status:** Aceito  
+**Date:** 07-11-2025  
+**ADRs Relacionados:** ADR-001, ADR-003
 
-Aceito
+## Contexto e Declaração do Problema
 
-## Contexto
+Com o padrão outbox adotado (ADR-001), eventos de notificação ficam persistidos no MySQL aguardando entrega HTTP aos endpoints cadastrados pelos clientes. É necessário definir como esses eventos serão consumidos e transformados em chamadas outbound.
 
-Eventos na `webhook_outbox` precisam ser consumidos e transformados em chamadas HTTP outbound para os endpoints cadastrados pelos clientes. O requisito de negócio aceita latência abaixo de 10 segundos como "tempo real" (`[09:02] Marcos`).
+O requisito de negócio aceita latência abaixo de dez segundos como equivalente a tempo real. A API principal já possui entry-point dedicado com bootstrap, logging estruturado e encerramento gracioso; o mecanismo de entrega deve coexistir sem comprometer disponibilidade da API durante deploys ou reinícios.
 
-A API principal já possui entry-point dedicado em `src/server.ts` com bootstrap, logger Pino e graceful shutdown. O worker deve seguir padrão similar, mas como processo Node.js independente.
+MySQL não oferece notificação nativa a processos externos comparável a mecanismos de outros bancos relacionais, o que limita abordagens reativas baseadas apenas no banco.
 
-## Decisão
+## Fatores de Decisão
 
-- Implementar worker como **processo separado** da API (`src/worker.ts`), com script `npm run worker`.
-- O worker **não** roda dentro da mesma instância da API — reinício da API não deve interromper entrega de webhooks.
-- Usar **polling** a cada **2 segundos**: buscar eventos pendentes mais antigos, processar em batch pequeno, marcar status.
-- Instância PrismaClient separada no worker (mesma `DATABASE_URL`, processo diferente).
-- Lógica de processamento em `src/modules/webhooks/webhook.processor.ts` (ou `webhook.worker.ts`).
-- **Single-worker** na fase inicial: ordering implícita por `created_at` dentro de um mesmo `order_id`. Escalar para múltiplos workers é problema futuro (particionamento por `order_id` ou lock pessimista).
+- SLA de entrega abaixo de dez segundos para clientes B2B.
+- Resiliência a reinícios da API sem interrupção das entregas.
+- Simplicidade operacional para time pequeno.
+- Limitações do MySQL para sinalização a processos externos.
+- Throughput inicial compatível com worker único.
 
-Timeout de cada chamada HTTP outbound: **10 segundos**; acima disso, tratar como falha e acionar retry.
+## Opções Consideradas
 
-## Alternativas Consideradas
+1. **Processo worker separado com polling periódico (intervalo de dois segundos)** — leitura de eventos pendentes em lotes pequenos, processamento e atualização de status.
+2. **Trigger de banco para notificar o worker** — reação imediata a novas linhas na store de eventos.
+3. **Worker embutido no mesmo processo da API** — consumo inline durante o runtime da aplicação.
 
-### Trigger MySQL para notificar worker
+## Resultado da Decisão
 
-Rejeitado. MySQL não possui mecanismo nativo equivalente ao NOTIFY/LISTEN do PostgreSQL. Trigger só executa SQL; avisar processo externo exigiria gambiarras (arquivo, endpoint interno).
+**Opção escolhida:** Processo worker separado com polling a cada dois segundos, porque atende o SLA com margem, evita gambiarras de sinalização no MySQL e isola entregas de reinícios da API.
 
-### Worker embutido na API
+O worker roda como processo Node.js independente, com conexão ao mesmo banco via instância de cliente ORM separada. Na fase inicial opera em configuração single-worker, preservando ordenação implícita por pedido enquanto eventos são processados por ordem de criação. Chamadas HTTP outbound têm timeout de dez segundos; falhas acionam política de retry (ADR-003).
 
-Rejeitado. Reinício do processo da API interromperia o consumo da outbox.
+## Prós e Contras das Opções
 
-### Polling com intervalo menor que 2s
+### Processo worker separado com polling
 
-Não adotado. 2s atende o SLA de <10s com margem e reduz carga no banco.
+- **Prós:** Latência previsível (~dois segundos no pior caso antes do processamento); simplicidade operacional; resiliência a deploys da API; sem broker externo.
+- **Contras:** Latência mínima mesmo com fila vazia; leituras periódicas no banco; single-worker limita throughput e ordenação global entre pedidos distintos.
+
+### Trigger de banco para notificar o worker
+
+- **Prós:** Potencialmente mais reativo que polling fixo.
+- **Contras:** MySQL executa apenas SQL dentro do trigger; avisar processo externo exigiria soluções frágeis; complexidade sem ganho proporcional dado o SLA.
+
+### Worker embutido no mesmo processo da API
+
+- **Prós:** Menos processos para operar; deploy único.
+- **Contras:** Reinício da API interrompe entregas; competição por recursos com requisições HTTP; acoplamento indesejado entre API e entrega.
 
 ## Consequências
 
-### Positivas
+A operação passa a incluir um processo adicional além da API, com script de execução dedicado e monitoramento próprio. Escalar para múltiplos workers é limitação conhecida: ordenação global entre pedidos não é garantida sem particionamento ou locking adicional — explicitamente adiado.
 
-- Latência previsível (pior caso ~2s + tempo de HTTP).
-- Simplicidade operacional: um binário/processo a mais, sem broker externo.
-- Resiliência a deploys da API.
+O intervalo de dois segundos define latência mínima aceita pelo produto. Polling contínuo gera carga de leitura no MySQL, mitigada por índices na store de eventos pendentes.
 
-### Negativas
+## Referências
 
-- Latência mínima de ~2s mesmo quando a fila está vazia.
-- Single-worker limita throughput e não garante ordering global entre pedidos diferentes.
-- Polling contínuo gera leituras periódicas no MySQL (aceitável com índice em status pendente).
+- src/server.ts:1
+- src/modules/orders/order.service.ts:126
+- prisma/schema.prisma:1

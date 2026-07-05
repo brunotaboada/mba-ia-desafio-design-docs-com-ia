@@ -1,52 +1,60 @@
 # ADR-003: Política de Retry com Backoff Exponencial e DLQ
 
-## Status
+**Status:** Aceito  
+**Date:** 07-11-2025  
+**ADRs Relacionados:** ADR-002, ADR-005
 
-Aceito
+## Contexto e Declaração do Problema
 
-## Contexto
+Endpoints de webhook dos clientes podem ficar temporariamente indisponíveis — manutenções planejadas de até duas horas já ocorreram com clientes reais. O worker (ADR-002) precisa tratar falhas de entrega sem bloquear indefinidamente a store de eventos ativa nem descartar evidência de eventos não entregues.
 
-Endpoints de webhook dos clientes podem estar temporariamente indisponíveis (manutenção planejada de até 2 horas foi citada como caso real). O worker precisa de estratégia clara para falhas de entrega sem bloquear a outbox indefinidamente nem perder evidência de eventos não entregues.
+Sem política clara, o time enfrentaria escolha entre retry infinito (poluição e custo) ou abandono prematuro (perda de notificações recuperáveis). Operações também precisam de caminho para reprocessamento manual de eventos que esgotaram tentativas automáticas.
 
-## Decisão
+## Fatores de Decisão
 
-### Retry
+- Cobrir indisponibilidades de curto e médio prazo sem retry eterno.
+- Manter store de eventos ativa legível para o worker.
+- Preservar evidência para debug e reprocessamento.
+- Controle operacional com intervenção humana para casos extremos.
+- Auditoria de ações administrativas sensíveis.
 
-- **5 tentativas** de entrega por evento (incluindo a primeira).
-- Backoff exponencial entre tentativas: **1 min → 5 min → 30 min → 2 h → 12 h** (~15h entre primeira falha e última tentativa).
-- Falha de timeout HTTP (10s) ou status não-2xx conta como tentativa falha.
+## Opções Consideradas
 
-### Dead Letter Queue (DLQ)
+1. **Cinco tentativas com backoff exponencial e dead letter queue separada** — progressão 1 min, 5 min, 30 min, 2 h, 12 h; após esgotar, mover para store de falhas permanentes com replay manual por administrador.
+2. **Três tentativas com backoff curto** — janela total de aproximadamente trinta minutos.
+3. **Retry indefinido com backoff crescente** — tentativas contínuas enquanto endpoint permanecer indisponível.
 
-- Tabela separada `webhook_dead_letter` com payload, motivo da falha e timestamp.
-- Após esgotar tentativas, mover evento da outbox para DLQ (outbox principal permanece limpa para leitura).
-- **Replay manual** via `POST /admin/webhooks/dead-letter/:id/replay` — recoloca evento na outbox como pendente.
-- Endpoint de replay exige role `ADMIN` via `requireRole` (`src/middlewares/auth.middleware.ts`) e deve logar quem executou o replay para auditoria.
+## Resultado da Decisão
 
-## Alternativas Consideradas
+**Opção escolhida:** Cinco tentativas com backoff exponencial (1 min → 5 min → 30 min → 2 h → 12 h) e dead letter queue em store separada, porque cobre janela de quase quinze horas entre primeira falha e última tentativa — adequada a manutenções planejadas — sem manter eventos órfãos indefinidamente.
 
-### 3 tentativas
+Falhas de timeout HTTP (dez segundos) ou respostas não bem-sucedidas contam como tentativa. Após esgotar tentativas, o evento migra para store de dead letter com payload, motivo e timestamp. Reprocessamento manual recoloca o evento na outbox como pendente, restrito a usuários com papel administrativo, com registro de auditoria de quem executou a ação.
 
-Rejeitado. Janela de ~30 minutos é insuficiente para manutenções planejadas de clientes.
+## Prós e Contras das Opções
+
+### Cinco tentativas com backoff e DLQ separada
+
+- **Prós:** Cobre indisponibilidades realistas; store ativa permanece limpa; evidência preservada para operações; replay manual controlado.
+- **Contras:** Cliente offline por mais de ~15h perde entrega automática; duas stores para operar; intervenção humana no replay.
+
+### Três tentativas com backoff curto
+
+- **Prós:** Falha rápida; menor volume de retries.
+- **Contras:** Insuficiente para manutenções de duas horas já observadas; eventos válidos iriam prematuramente para falha permanente.
 
 ### Retry indefinido com backoff
 
-Rejeitado. Eventos de clientes que desapareceram ficariam pendentes para sempre, poluindo a outbox.
-
-### Marcar como "failed" na própria outbox (sem tabela DLQ)
-
-Rejeitado. Polui leitura da outbox ativa e dificulta evidência para debug e reprocessamento.
+- **Prós:** Maximiza chance de entrega eventual.
+- **Contras:** Eventos de clientes descontinuados poluem a store indefinidamente; custo operacional e de armazenamento crescente.
 
 ## Consequências
 
-### Positivas
+Engenharia modela transição entre store ativa e dead letter, incluindo metadados de falha. Operações ganha visibilidade de eventos não entregáveis automaticamente e ferramenta de replay com trilha de auditoria.
 
-- Cobre indisponibilidades de curto e médio prazo (~15h).
-- DLQ separada facilita operação e auditoria.
-- Replay manual dá controle ao time interno sem automatismo arriscado.
+Clientes com indisponibilidade prolongada além da janela de retry dependem de reprocessamento manual ou integração alternativa. A política complementa a semântica at-least-once (ADR-005), pois replays podem gerar entregas duplicadas.
 
-### Negativas
+## Referências
 
-- Cliente offline por mais de ~15h perde entrega automática (evento vai para DLQ).
-- Complexidade adicional de duas tabelas e lógica de transição outbox → DLQ.
-- Replay manual exige intervenção humana com role ADMIN.
+- src/middlewares/auth.middleware.ts:49
+- src/middlewares/error.middleware.ts:14
+- src/modules/orders/order.service.ts:126

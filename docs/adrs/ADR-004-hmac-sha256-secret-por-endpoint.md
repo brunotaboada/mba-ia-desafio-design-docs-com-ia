@@ -1,49 +1,62 @@
 # ADR-004: Autenticação HMAC-SHA256 com Secret por Endpoint
 
-## Status
+**Status:** Aceito  
+**Date:** 07-11-2025  
+**ADRs Relacionados:** ADR-005
 
-Aceito
+## Contexto e Declaração do Problema
 
-## Contexto
+Webhooks outbound expõem dados de pedidos para URLs fora da infraestrutura da plataforma. Clientes B2B precisam validar que cada requisição originou-se genuinamente da plataforma e que o conteúdo não foi adulterado em trânsito.
 
-Webhooks outbound expõem dados de pedidos para URLs fora da infraestrutura da plataforma. Clientes precisam validar autenticidade e integridade do payload. A engenharia de segurança definiu requisitos de assinatura e gestão de secrets.
+A engenharia de segurança exige mecanismo de assinatura reconhecido pelo mercado, gestão de credenciais com blast radius limitado e capacidade de rotação sem downtime para o cliente integrador. URLs inseguras e payloads excessivamente grandes representam vetores de risco adicionais.
 
-## Decisão
+## Fatores de Decisão
 
-- Assinar o **corpo JSON** da requisição com **HMAC-SHA256**.
-- Enviar assinatura no header `X-Signature`.
-- **Secret única por endpoint** de webhook (não secret global da plataforma).
-- Tabela de configuração armazena: `url`, `secret`, `customer_id`, estado ativo, lista de status subscritos.
-- Secret **gerada pela plataforma** na criação (`POST`); devolvida uma única vez na resposta.
-- **Rotação de secret** via endpoint dedicado: secret antiga permanece válida por **24 horas** em paralelo (grace period para migração do cliente).
-- **TLS obrigatório**: URLs devem ser `https`; cadastro com `http` rejeitado na validação Zod.
-- Limite de payload: **64KB**; ultrapassar gera erro (não truncar).
-- Headers de entrega: `X-Event-Id`, `X-Signature`, `X-Timestamp`, `X-Webhook-Id`, `Content-Type: application/json`.
+- Autenticidade e integridade verificáveis pelo cliente com bibliotecas padrão.
+- Isolamento de credenciais por endpoint cadastrado.
+- Capacidade de rotação de secret com período de convivência.
+- Transporte criptografado obrigatório.
+- Limite de tamanho de payload para detectar anomalias.
 
-## Alternativas Consideradas
+## Opções Consideradas
+
+1. **HMAC-SHA256 sobre o corpo da requisição, secret única por endpoint, rotação com grace period de 24 horas** — assinatura enviada em header dedicado; TLS obrigatório.
+2. **Secret global compartilhada por toda a plataforma** — uma credencial para todos os clientes.
+3. **Assinatura assimétrica com par de chaves pública/privada** — cliente valida com chave pública da plataforma.
+
+## Resultado da Decisão
+
+**Opção escolhida:** HMAC-SHA256 com secret única por endpoint e rotação com grace period de vinte e quatro horas, porque equilibra segurança, simplicidade de integração e práticas de mercado adotadas por provedores de referência.
+
+A plataforma gera a secret na criação do endpoint e a entrega uma única vez. Na rotação, a secret anterior permanece válida por vinte e quatro horas em paralelo, permitindo migração gradual no lado do cliente. Apenas URLs HTTPS são aceitas no cadastro. Payloads acima de sessenta e quatro kilobytes são rejeitados sem truncamento.
+
+Headers de entrega incluem identificadores de evento, assinatura, timestamp e endpoint, além do tipo de conteúdo JSON.
+
+## Prós e Contras das Opções
+
+### HMAC-SHA256 com secret por endpoint
+
+- **Prós:** Amplamente suportado; blast radius limitado por vazamento; rotação com grace period reduz downtime; validação simples no cliente.
+- **Contras:** Cliente deve armazenar secret com segurança; lógica de duas secrets ativas durante rotação; revisão de segurança obrigatória antes do deploy.
 
 ### Secret global da plataforma
 
-Rejeitado. Vazamento de uma secret comprometeria todos os clientes.
+- **Prós:** Gestão centralizada única; integração inicialmente mais simples.
+- **Contras:** Vazamento compromete todos os clientes; inaceitável para dados de pedidos B2B.
 
-### Assinatura assimétrica (RSA/ECDSA)
+### Assinatura assimétrica
 
-Não adotado nesta fase. HMAC-SHA256 é padrão de mercado (Stripe, GitHub) e todas as bibliotecas dos clientes suportam.
-
-### Truncar payload acima de 64KB
-
-Rejeitado. Payload nesse tamanho indica problema; melhor falhar explicitamente.
+- **Prós:** Secret não compartilhada com cliente; modelo robusto para alguns cenários.
+- **Contras:** Complexidade de gestão de chaves; bibliotecas e documentação menos uniformes entre clientes B2B; desproporcional para o escopo atual.
 
 ## Consequências
 
-### Positivas
+O módulo de webhooks incorpora geração segura de secrets, validação de URL e assinatura no worker de entrega. Clientes assumem responsabilidade de verificação HMAC e armazenamento seguro de credenciais.
 
-- Cliente valida origem e integridade com bibliotecas padrão.
-- Blast radius limitado por endpoint em caso de vazamento.
-- Grace period de rotação evita downtime na migração.
+Truncar payloads grandes foi explicitamente descartado — tamanho anômalo indica erro de sistema. A decisão complementa ADR-005 quanto aos headers de identificação de evento na entrega.
 
-### Negativas
+## Referências
 
-- Responsabilidade de armazenar secret com segurança no lado do cliente.
-- Lógica de rotação com duas secrets ativas aumenta complexidade de verificação no worker.
-- Revisão de segurança obrigatória antes do deploy (2 dias úteis reservados para Sofia).
+- src/middlewares/auth.middleware.ts:1
+- src/shared/logger/index.ts:1
+- src/modules/orders/order.service.ts:50

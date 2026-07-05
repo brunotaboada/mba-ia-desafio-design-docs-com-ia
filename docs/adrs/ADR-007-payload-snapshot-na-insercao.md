@@ -1,59 +1,60 @@
 # ADR-007: Snapshot de Payload na Inserção da Outbox
 
-## Status
+**Status:** Aceito  
+**Date:** 07-11-2025  
+**ADRs Relacionados:** ADR-001
 
-Aceito
+## Contexto e Declaração do Problema
 
-## Contexto
+Eventos na outbox (ADR-001) precisam de conteúdo para entrega HTTP aos clientes. Uma abordagem alternativa seria montar o payload no momento do envio, consultando novamente o estado atual do pedido no banco.
 
-Ao processar um evento da outbox, o worker poderia re-buscar o pedido no banco e montar o payload na hora do envio. Porém, o pedido pode ser alterado após a mudança de status (ex.: notas, desconto em fluxos futuros), gerando inconsistência entre o momento do evento e o payload entregue.
+Porém o pedido pode sofrer alterações após a transição de status — campos auxiliares, ajustes futuros — gerando inconsistência entre o instante do evento de negócio e o conteúdo entregue ao cliente. O time também precisa evitar inserir eventos para combinações pedido-status sem assinantes configurados.
 
-## Decisão
+## Fatores de Decisão
 
-- Armazenar o **payload JSON renderizado** na coluna da `webhook_outbox` no momento da inserção (snapshot).
-- O snapshot reflete o estado do pedido **no instante da transição de status**.
-- Formato do payload:
+- Fidelidade do payload ao instante da transição de status.
+- Simplicidade do caminho crítico do worker de entrega.
+- Tamanho enxuto do evento para respeitar limites de segurança (ADR-004).
+- Eficiência de armazenamento na store de eventos.
+- Filtragem antecipada por status subscrito por cliente.
 
-```json
-{
-  "event_id": "<uuid>",
-  "event_type": "order.status_changed",
-  "timestamp": "<ISO 8601>",
-  "order_id": "<uuid>",
-  "order_number": "ORD-000042",
-  "from_status": "PAID",
-  "to_status": "PROCESSING",
-  "customer_id": "<uuid>",
-  "total_cents": 15000
-}
-```
+## Opções Consideradas
 
-- **Não incluir `items`** no payload para mantê-lo enxuto; cliente busca detalhes via `GET /orders/:id` se necessário.
-- Filtro de status subscrito ocorre **na inserção**: se nenhum webhook do `customer_id` quer aquele `to_status`, não insere linha na outbox.
+1. **Snapshot JSON persistido na inserção** — payload renderizado na transação, incluindo metadados do pedido sem itens de linha; filtro de assinatura aplicado antes de inserir.
+2. **Renderização lazy no envio** — worker consulta pedido atual e monta payload na hora da entrega.
+3. **Inserção incondicional com filtro no worker** — todas as transições geram linha na store; worker descarta não assinados.
 
-## Alternativas Consideradas
+## Resultado da Decisão
 
-### Renderizar payload no envio (lazy)
+**Opção escolhida:** Snapshot JSON persistido no momento da inserção na outbox, porque garante que o evento reflete o estado do pedido no instante da transição, independentemente de alterações posteriores.
 
-Rejeitado. Pedido pode mudar entre inserção e entrega; evento não refletiria o instante da transição.
+O payload inclui identificador de evento, tipo de evento de mudança de status, timestamp ISO 8601, identificadores e número do pedido, status origem e destino, cliente e valor total — sem itens de linha, mantendo envelope enxuto. Cliente que necessitar detalhes complementares consulta API de pedidos existente. Se nenhum endpoint do cliente assina o status destino, nenhuma linha é inserida na store.
 
-### Incluir items completos no payload
+## Prós e Contras das Opções
 
-Rejeitado. Infla tamanho do evento sem necessidade; risco de aproximar limite de 64KB.
+### Snapshot na inserção
 
-### Inserir na outbox e filtrar no worker
+- **Prós:** Semântica clara de instante do evento; worker lê e envia sem consultas adicionais; filtro na inserção economiza armazenamento.
+- **Contras:** Duplicação de payload em store ativa e dead letter; evolução de formato exige versionamento ou migração de pendentes.
 
-Rejeitado. Gera linhas desnecessárias na tabela; filtro na inserção economiza espaço e I/O.
+### Renderização lazy no envio
+
+- **Prós:** Payload sempre reflete estado mais recente do pedido.
+- **Contras:** Estado recente pode divergir do instante da transição; consultas extras no worker; semântica ambígua para o cliente.
+
+### Inserção incondicional com filtro no worker
+
+- **Prós:** Lógica de filtro concentrada no consumidor.
+- **Contras:** Linhas desnecessárias na store; I/O e armazenamento desperdiçados; processamento de eventos sem destinatário.
 
 ## Consequências
 
-### Positivas
+A store de eventos armazena conteúdo serializado além de metadados de controle. Mudanças futuras no esquema do payload demandam estratégia de compatibilidade para eventos pendentes.
 
-- Semântica clara: payload = foto do momento do evento.
-- Worker simplificado (lê payload pronto, assina e envia).
-- Menos queries no caminho crítico do worker.
+A exclusão de itens de linha reduz tamanho e aproximação ao limite de sessenta e quatro kilobytes definido em ADR-004. Esta decisão complementa ADR-001 ao definir o que exatamente é persistido transacionalmente junto à mudança de status.
 
-### Negativas
+## Referências
 
-- Payload duplicado no banco (outbox + DLQ em caso de falha).
-- Alterações futuras no formato exigem versionamento ou migração de eventos pendentes.
+- src/modules/orders/order.service.ts:158
+- src/modules/orders/order.status.ts:3
+- prisma/schema.prisma:74

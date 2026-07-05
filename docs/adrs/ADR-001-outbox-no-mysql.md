@@ -1,49 +1,64 @@
 # ADR-001: Padrão Outbox no MySQL
 
-## Status
+**Status:** Aceito  
+**Date:** 07-11-2025  
+**ADRs Relacionados:** ADR-002, ADR-007
 
-Aceito
+## Contexto e Declaração do Problema
 
-## Contexto
+Clientes B2B precisam ser notificados quando o status de pedidos muda na plataforma. Hoje dependem de polling periódico, o que torna integrações lentas e caras. A mudança de status no OMS ocorre dentro de uma transação de banco que persiste o pedido, o histórico de status e ajustes de estoque — operação já considerada pesada pelo time.
 
-Clientes B2B precisam ser notificados quando o status de pedidos muda. A mudança de status ocorre em `OrderService.changeStatus`, dentro de uma transação Prisma que atualiza `orders`, insere em `order_status_history` e ajusta estoque (`src/modules/orders/order.service.ts`).
+Disparar notificações HTTP de forma síncrona dentro dessa transação acopla a disponibilidade e a latência de sistemas externos ao fluxo crítico de pedidos. Se o endpoint do cliente estiver lento ou indisponível, mudanças de status para outros pedidos seriam bloqueadas. Além disso, falha na entrega externa não pode justificar rollback de uma mudança de status já válida no negócio.
 
-Disparar HTTP de webhook de forma síncrona dentro dessa transação foi descartado: qualquer endpoint lento ou indisponível do cliente bloquearia mudanças de status para outros pedidos, e falha no HTTP não pode causar rollback da mudança de status já commitada logicamente.
+O time precisa de um mecanismo que garanta que todo status commitado gere um registro de evento correspondente, sem adicionar infraestrutura desproporcional para um time pequeno.
 
-## Decisão
+## Fatores de Decisão
 
-Adotar o **padrão Transactional Outbox** usando o MySQL existente:
+- Consistência transacional entre mudança de status e registro do evento de notificação.
+- Isolamento do fluxo de pedidos em relação à latência e falhas de endpoints externos.
+- Reuso do MySQL já em produção, sem novo broker de mensagens.
+- Capacidade operacional limitada do time para manter infraestrutura adicional.
+- Alinhamento com o padrão de identificadores UUID já adotado no projeto.
 
-- Criar tabela `webhook_outbox` no mesmo banco gerenciado pelo Prisma.
-- Inserir o evento na outbox **dentro da mesma transação** que persiste a mudança de status em `changeStatus`.
-- Se a inserção na outbox falhar, a transação inteira faz rollback — não pode existir status alterado sem evento registrado.
-- Um worker separado lê a outbox e dispara as chamadas HTTP de forma assíncrona.
-- IDs da outbox em UUID, seguindo o padrão do projeto (`prisma/schema.prisma`).
-- Índices em `status` (pendente, processando, falhou, entregue) e `created_at` para leitura eficiente pelo worker.
-- Payload renderizado como snapshot no momento da inserção (ver ADR-007).
+## Opções Consideradas
 
-Integração prevista via função `publishWebhookEvent(tx, order, fromStatus, toStatus)` chamada de dentro de `changeStatus`, recebendo o `TransactionClient` da transação ativa.
+1. **Padrão Transactional Outbox no MySQL** — registrar evento na mesma transação da mudança de status; worker separado consome e entrega de forma assíncrona.
+2. **Disparo síncrono durante a transação de pedidos** — chamar o endpoint do cliente antes do commit.
+3. **Fila externa com Redis Streams** — publicar evento em broker dedicado após o commit.
 
-## Alternativas Consideradas
+## Resultado da Decisão
 
-### Disparo síncrono no `OrderService`
+**Opção escolhida:** Padrão Transactional Outbox no MySQL, porque garante atomicidade entre persistência do status e registro do evento usando infraestrutura existente, sem acoplar entregas HTTP ao caminho crítico de pedidos.
 
-Rejeitado. Acopla latência e disponibilidade do cliente externo à transação crítica de pedidos. Rollback por falha de webhook é inaceitável.
+O evento é persistido junto à mudança de status; se o registro falhar, toda a transação é revertida. Um processo worker dedicado lê eventos pendentes e executa as entregas outbound. O conteúdo do evento é capturado como snapshot no momento da inserção (ver ADR-007).
 
-### Redis Streams / fila externa
+## Prós e Contras das Opções
 
-Rejeitado. Exigiria subir e operar infraestrutura adicional (Redis Cluster) para um time pequeno. O MySQL já está em produção e suporta o padrão outbox com garantia transacional nativa.
+### Padrão Transactional Outbox no MySQL
+
+- **Prós:** Consistência forte; sem nova infraestrutura; worker pode reiniciar sem perder eventos commitados; padrão maduro e bem documentado.
+- **Contras:** Crescimento de volume na store de eventos; latência mínima de entrega depende do mecanismo de consumo (ADR-002); acoplamento leve entre domínio de pedidos e publicação de eventos.
+
+### Disparo síncrono durante a transação de pedidos
+
+- **Prós:** Entrega imediata em caso de sucesso; modelo mental simples.
+- **Contras:** Bloqueia transações por latência externa; indisponibilidade do cliente impacta todos os pedidos; rollback por falha de webhook é inaceitável no negócio.
+
+### Fila externa com Redis Streams
+
+- **Prós:** Desacoplamento e throughput elevado; consumo reativo possível.
+- **Contras:** Exige Redis Cluster e operação adicional; overengineering para o volume e o tamanho do time; risco de inconsistência entre commit e publicação sem outbox transacional.
 
 ## Consequências
 
-### Positivas
+A plataforma passa a ter uma store de eventos outbound acoplada transacionalmente ao ciclo de vida de pedidos. Engenharia deve modelar estados do evento (pendente, processando, entregue, falhou) com índices adequados para leitura pelo worker.
 
-- Consistência forte entre mudança de status e registro do evento.
-- Sem nova infraestrutura além do MySQL existente.
-- Worker pode falhar e reiniciar sem perder eventos já commitados.
+Operacionalmente, o arquivamento de eventos entregues após período prolongado fica fora do escopo desta fase. A entrega assíncrona introduz latência adicional em relação ao disparo síncrono, compensada pela resiliência e pelo isolamento do domínio de pedidos.
 
-### Negativas
+Esta decisão é pré-requisito para ADR-002 (consumo por worker) e ADR-007 (formato do snapshot persistido).
 
-- Crescimento da tabela `webhook_outbox`; arquivamento após 30 dias fica fora do escopo desta fase.
-- Latência mínima de entrega depende do intervalo de polling do worker (2s — ver ADR-002).
-- Acoplamento do módulo de pedidos à função de publicação de eventos (mitigado pela função `publishWebhookEvent` com `tx`).
+## Referências
+
+- src/modules/orders/order.service.ts:126
+- src/modules/orders/order.status.ts:1
+- prisma/schema.prisma:74
