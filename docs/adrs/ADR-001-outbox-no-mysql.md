@@ -6,7 +6,7 @@
 - [ADR-002: Worker em Processo Separado com Polling](./ADR-002-worker-polling-processo-separado.md)
 - [ADR-007: Snapshot de Payload na Inserção da Outbox](./ADR-007-payload-snapshot-na-insercao.md)
 
-## Contexto e Declaração do Problema
+## Contexto
 
 Clientes B2B precisam ser notificados quando o status de pedidos muda na plataforma. Hoje dependem de polling periódico, o que torna integrações lentas e caras. A mudança de status no OMS ocorre dentro de uma transação de banco que persiste o pedido, o histórico de status e ajustes de estoque — operação já considerada pesada pelo time.
 

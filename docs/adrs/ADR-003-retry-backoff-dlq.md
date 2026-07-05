@@ -5,7 +5,7 @@
 **Depends on:** [ADR-002: Worker em Processo Separado com Polling](./ADR-002-worker-polling-processo-separado.md)  
 **Related to:** [ADR-005: Garantia At-Least-Once com Identificador de Evento](./ADR-005-at-least-once-x-event-id.md)
 
-## Contexto e Declaração do Problema
+## Contexto
 
 Endpoints de webhook dos clientes podem ficar temporariamente indisponíveis — manutenções planejadas de até duas horas já ocorreram com clientes reais. O worker (ADR-002) precisa tratar falhas de entrega sem bloquear indefinidamente a store de eventos ativa nem descartar evidência de eventos não entregues.
 

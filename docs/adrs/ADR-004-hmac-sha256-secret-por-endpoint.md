@@ -6,7 +6,7 @@
 - [ADR-005: Garantia At-Least-Once com Identificador de Evento](./ADR-005-at-least-once-x-event-id.md)
 - [ADR-007: Snapshot de Payload na Inserção da Outbox](./ADR-007-payload-snapshot-na-insercao.md)
 
-## Contexto e Declaração do Problema
+## Contexto
 
 Webhooks outbound expõem dados de pedidos para URLs fora da infraestrutura da plataforma. Clientes B2B precisam validar que cada requisição originou-se genuinamente da plataforma e que o conteúdo não foi adulterado em trânsito.
 

@@ -6,7 +6,7 @@
 **Used by:** [ADR-003: Política de Retry com Backoff Exponencial e DLQ](./ADR-003-retry-backoff-dlq.md)  
 **Related to:** [ADR-006: Reuso dos Padrões Existentes do Projeto](./ADR-006-reuso-padroes-projeto.md)
 
-## Contexto e Declaração do Problema
+## Contexto
 
 Com o padrão outbox adotado (ADR-001), eventos de notificação ficam persistidos no MySQL aguardando entrega HTTP aos endpoints cadastrados pelos clientes. É necessário definir como esses eventos serão consumidos e transformados em chamadas outbound.
 

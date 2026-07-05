@@ -6,7 +6,7 @@
 - [ADR-001: Padrão Outbox no MySQL](./ADR-001-outbox-no-mysql.md)
 - [ADR-002: Worker em Processo Separado com Polling](./ADR-002-worker-polling-processo-separado.md)
 
-## Contexto e Declaração do Problema
+## Contexto
 
 O OMS segue estrutura modular consistente: cada domínio de negócio organiza camadas de apresentação, regras, persistência, rotas e validação em diretório próprio sob módulos. Erros tipados, logging estruturado, middleware centralizado de exceções e controle de acesso por papel já estão estabelecidos e em uso.
 
