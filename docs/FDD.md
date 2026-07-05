@@ -187,6 +187,14 @@ Formato de erro da API (padrão existente via `error.middleware.ts`):
 - **Auth:** Bearer JWT
 - **Status:** `200` lista (sem secret) · `400` query inválida · `401` não autenticado
 
+**Request**
+
+Query string obrigatória:
+
+```
+GET /api/webhooks?customerId=a1b2c3d4-e5f6-7890-abcd-ef1234567890
+```
+
 **Response (200)**
 
 ```json
@@ -209,6 +217,14 @@ Formato de erro da API (padrão existente via `error.middleware.ts`):
 - **Auth:** Bearer JWT
 - **Status:** `200` últimos 100 registros · `404` webhook não encontrado
 - **Semântica:** sucesso/falha, payload, response, tempo de resposta
+
+**Request**
+
+Path param obrigatório:
+
+```
+GET /api/webhooks/f47ac10b-58cc-4372-a567-0e02b2c3d479/deliveries
+```
 
 **Response (200)**
 
@@ -256,6 +272,19 @@ Formato de erro da API (padrão existente via `error.middleware.ts`):
   "updatedAt": "2025-11-07T14:30:00.000Z"
 }
 ```
+
+### DELETE /api/webhooks/:id — Remover webhook
+
+- **Auth:** Bearer JWT
+- **Status:** `204` removido · `404` não encontrado · `409` entregas pendentes (opcional — política a definir na implementação)
+
+**Request**
+
+Sem corpo. Identificador do webhook no path (`:id`).
+
+**Response (204)**
+
+Sem corpo.
 
 ### POST /api/admin/webhooks/dead-letter/:id/replay — Replay DLQ
 

@@ -157,3 +157,14 @@ Mapeamento de itens documentados à origem na transcrição (`TRANSCRICAO.md`) o
 | PRD-DEP-02 | docs/PRD.md | Dependência | Integração em changeStatus do módulo pedidos | CODIGO | src/modules/orders/order.service.ts |
 | PRD-ACC-01 | docs/PRD.md | Decisão | Validação E2E com cliente piloto Atlas | TRANSCRICAO | [09:45] Marcos |
 | PRD-TST-01 | docs/PRD.md | Decisão | Regressão em tests/orders.test.ts | CODIGO | tests/orders.test.ts |
+| PRD-NFR-07 | docs/PRD.md | Requisito Não Funcional | Timeout de 10 segundos por chamada HTTP outbound | TRANSCRICAO | [09:42] Diego |
+| PRD-NFR-08 | docs/PRD.md | Requisito Não Funcional | Consistência transacional status + outbox | TRANSCRICAO | [09:06] Diego |
+| PRD-NFR-09 | docs/PRD.md | Requisito Não Funcional | CRUD autenticado; replay DLQ só ADMIN | TRANSCRICAO | [09:36] Sofia |
+| PRD-NFR-10 | docs/PRD.md | Requisito Não Funcional | Códigos de erro prefixo WEBHOOK_ | TRANSCRICAO | [09:29] Larissa |
+| PRD-RISK-05 | docs/PRD.md | Risco | Volume alto sem rate limit — prob. baixa, impacto médio | TRANSCRICAO | [09:39] Larissa |
+| FDD-ERR-05 | docs/FDD.md | Decisão | WEBHOOK_INACTIVE para webhook desativado | TRANSCRICAO | [09:33] Bruno |
+| FDD-ERR-06 | docs/FDD.md | Decisão | WEBHOOK_CUSTOMER_MISMATCH bloqueia acesso cruzado | TRANSCRICAO | [09:32] Larissa |
+| FDD-ERR-07 | docs/FDD.md | Decisão | WEBHOOK_DELIVERY_FAILED aciona retry ou DLQ | TRANSCRICAO | [09:15] Diego |
+| FDD-ERR-08 | docs/FDD.md | Decisão | WEBHOOK_DEAD_LETTER_NOT_FOUND no replay | TRANSCRICAO | [09:18] Diego |
+| FDD-ERR-09 | docs/FDD.md | Decisão | WEBHOOK_REPLAY_FORBIDDEN sem role ADMIN | TRANSCRICAO | [09:36] Sofia |
+| FDD-CON-08 | docs/FDD.md | Requisito Funcional | DELETE /api/webhooks/:id remove webhook | TRANSCRICAO | [09:33] Bruno |
