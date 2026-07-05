@@ -19,13 +19,13 @@ Porém o pedido pode sofrer alterações após a transição de status — campo
 - Eficiência de armazenamento na store de eventos.
 - Filtragem antecipada por status subscrito por cliente.
 
-## Opções Consideradas
+## Alternativas Consideradas
 
 1. **Snapshot JSON persistido na inserção** — payload renderizado na transação, incluindo metadados do pedido sem itens de linha; filtro de assinatura aplicado antes de inserir.
 2. **Renderização lazy no envio** — worker consulta pedido atual e monta payload na hora da entrega.
 3. **Inserção incondicional com filtro no worker** — todas as transições geram linha na store; worker descarta não assinados.
 
-## Resultado da Decisão
+## Decisão
 
 **Opção escolhida:** Snapshot JSON persistido no momento da inserção na outbox, porque garante que o evento reflete o estado do pedido no instante da transição, independentemente de alterações posteriores.
 
@@ -50,9 +50,18 @@ O payload inclui identificador de evento, tipo de evento de mudança de status, 
 
 ## Consequências
 
-A store de eventos armazena conteúdo serializado além de metadados de controle. Mudanças futuras no esquema do payload demandam estratégia de compatibilidade para eventos pendentes.
+### Positivas
 
-A exclusão de itens de linha reduz tamanho e aproximação ao limite de sessenta e quatro kilobytes definido em ADR-004. Esta decisão complementa ADR-001 ao definir o que exatamente é persistido transacionalmente junto à mudança de status.
+- Semântica clara: payload reflete o instante exato da transição de status.
+- Worker simplificado — lê payload pronto, assina e envia sem consultas adicionais ao pedido.
+- Filtro de status subscrito na inserção economiza armazenamento e I/O na store de eventos.
+- Payload enxuto (sem itens de linha) respeita limite de 64KB definido em ADR-004.
+
+### Negativas
+
+- Payload duplicado na store ativa e na dead letter em caso de falha permanente.
+- Evolução do formato exige versionamento ou migração de eventos ainda pendentes.
+- Cliente que precisa de detalhes completos deve consultar API de pedidos separadamente.
 
 ## Referências
 

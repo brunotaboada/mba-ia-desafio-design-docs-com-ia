@@ -20,13 +20,13 @@ O módulo de webhooks de notificação de pedidos deve integrar-se sem introduzi
 - Evitar dependências externas de fila que contradizem ADR-001.
 - Prefixo de códigos de erro identificável por domínio.
 
-## Opções Consideradas
+## Alternativas Consideradas
 
 1. **Novo módulo seguindo convenções existentes** — mesma organização em camadas, erros tipados com prefixo de domínio, logger e middlewares sem alteração.
 2. **Biblioteca externa de filas e workers** — abstração dedicada para processamento assíncrono.
 3. **Módulo monolítico sem separação de camadas** — implementação concentrada em poucos arquivos.
 
-## Resultado da Decisão
+## Decisão
 
 **Opção escolhida:** Novo módulo sob a mesma estrutura modular dos demais domínios, reutilizando erros tipados, logger estruturado, middleware de exceções, autenticação com controle de papel e validação declarativa, porque preserva homogeneidade da codebase e reduz superfície de mudanças em componentes transversais.
 
@@ -51,9 +51,18 @@ Códigos de erro do domínio usam prefixo dedicado para distinguir falhas de web
 
 ## Consequências
 
-Engenharia cria diretório de módulo espelhando a estrutura dos domínios existentes, sem modificar comportamento dos middlewares transversais. Erros de webhook são subclasses do modelo de erro base já tratado centralmente.
+### Positivas
 
-A decisão ancora implementação do worker (ADR-002) e da integração transacional (ADR-001) nos mesmos padrões de persistência e logging. Códigos de erro do novo domínio devem ser catalogados para evitar colisão semântica com códigos de pedidos.
+- Curva de aprendizado zero para engenheiros já familiarizados com o OMS.
+- Error handling, logging e autenticação funcionam sem alteração nos middlewares transversais.
+- Code review e testes seguem os mesmos padrões dos módulos existentes.
+- Ancora worker (ADR-002) e integração transacional (ADR-001) em convenções já validadas.
+
+### Negativas
+
+- Domínio de pedidos ganha dependência leve da publicação de eventos de webhook.
+- Códigos de erro com prefixo `WEBHOOK_` precisam ser catalogados no FDD para evitar colisão semântica.
+- Módulo novo ainda exige modelagem de persistência e worker, apesar do reuso de padrões.
 
 ## Referências
 

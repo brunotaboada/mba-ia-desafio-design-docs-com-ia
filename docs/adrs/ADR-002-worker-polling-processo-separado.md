@@ -22,13 +22,13 @@ MySQL não oferece notificação nativa a processos externos comparável a mecan
 - Limitações do MySQL para sinalização a processos externos.
 - Throughput inicial compatível com worker único.
 
-## Opções Consideradas
+## Alternativas Consideradas
 
 1. **Processo worker separado com polling periódico (intervalo de dois segundos)** — leitura de eventos pendentes em lotes pequenos, processamento e atualização de status.
 2. **Trigger de banco para notificar o worker** — reação imediata a novas linhas na store de eventos.
 3. **Worker embutido no mesmo processo da API** — consumo inline durante o runtime da aplicação.
 
-## Resultado da Decisão
+## Decisão
 
 **Opção escolhida:** Processo worker separado com polling a cada dois segundos, porque atende o SLA com margem, evita gambiarras de sinalização no MySQL e isola entregas de reinícios da API.
 
@@ -53,9 +53,20 @@ O worker roda como processo Node.js independente, com conexão ao mesmo banco vi
 
 ## Consequências
 
-A operação passa a incluir um processo adicional além da API, com script de execução dedicado e monitoramento próprio. Escalar para múltiplos workers é limitação conhecida: ordenação global entre pedidos não é garantida sem particionamento ou locking adicional — explicitamente adiado.
+### Positivas
 
-O intervalo de dois segundos define latência mínima aceita pelo produto. Polling contínuo gera carga de leitura no MySQL, mitigada por índices na store de eventos pendentes.
+- Atende o SLA de entrega abaixo de dez segundos com margem previsível.
+- Reinícios e deploys da API não interrompem as entregas de webhooks.
+- Simplicidade operacional: um processo adicional, sem broker externo.
+- Resiliência a indisponibilidade temporária da API.
+
+### Negativas
+
+- Operação passa a incluir processo adicional com script e monitoramento próprios.
+- Latência mínima de ~dois segundos mesmo com fila vazia.
+- Single-worker limita throughput e não garante ordenação global entre pedidos distintos.
+- Polling contínuo gera leituras periódicas no MySQL (mitigável com índices adequados).
+- Escalar para múltiplos workers permanece explicitamente adiado.
 
 ## Referências
 

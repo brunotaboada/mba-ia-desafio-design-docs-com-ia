@@ -20,17 +20,17 @@ Clientes B2B precisam de mecanismo simples para distinguir evento novo de reentr
 - Responsabilidade clara entre plataforma e cliente integrador.
 - Identificador estável por evento, independente do conteúdo do pedido.
 
-## Opções Consideradas
+## Alternativas Consideradas
 
-1. **Semântica at-least-once com identificador único por evento em header dedicado** — cliente deduplica pelo identificador.
+1. **Semântica at-least-once com `X-Event-Id` (UUID por evento)** — cliente deduplica pelo header.
 2. **Entrega exactly-once** — coordenação bilateral para garantir processamento único.
 3. **Deduplicação implícita por combinação pedido e status destino** — sem identificador de evento dedicado.
 
-## Resultado da Decisão
+## Decisão
 
-**Opção escolhida:** Semântica at-least-once com identificador UUID gerado no momento da inserção na outbox e transmitido em header dedicado em toda entrega HTTP, porque permite reenvios seguros do lado emissor enquanto o cliente mantém controle de idempotência.
+**Opção escolhida:** Semântica at-least-once com identificador UUID gerado no momento da inserção na outbox e transmitido no header **`X-Event-Id`** em toda entrega HTTP, porque permite reenvios seguros do lado emissor enquanto o cliente mantém controle de idempotência.
 
-O portal do desenvolvedor deve documentar explicitamente que integradores devem deduplicar pelo identificador de evento. O identificador é único por ocorrência de notificação, cobrindo replays e timeouts ambíguos que a deduplicação por pedido e status não cobriria.
+O portal do desenvolvedor deve documentar explicitamente que integradores devem deduplicar pelo valor de `X-Event-Id`. O identificador é único por ocorrência de notificação, cobrindo replays e timeouts ambíguos que a deduplicação por pedido e status não cobriria.
 
 ## Prós e Contras das Opções
 
@@ -51,9 +51,18 @@ O portal do desenvolvedor deve documentar explicitamente que integradores devem 
 
 ## Consequências
 
-A plataforma aceita que entregas duplicadas são comportamento esperado e documentado. Engenharia gera e persiste identificador na inserção do evento; o worker o propaga em toda tentativa de entrega, incluindo retries.
+### Positivas
 
-Integradores assumem responsabilidade de idempotência — requisito a destacar em documentação e exemplos. A decisão interage com ADR-004 (header de assinatura complementar) e ADR-003 (replay manual pode gerar nova tentativa com mesmo identificador).
+- Implementação simples no worker: reenviar é seguro do lado emissor.
+- Alinhado com práticas de mercado (Stripe, GitHub citados na reunião).
+- `X-Event-Id` cobre retry, timeout ambíguo e replay manual da dead letter (ADR-003).
+- Cliente controla idempotência no próprio sistema.
+
+### Negativas
+
+- Cliente **deve** implementar deduplicação por `X-Event-Id`; falha causa processamento duplicado.
+- Documentação e exemplos de integração precisam destacar esse requisito explicitamente.
+- Interage com ADR-004 (assinatura HMAC complementar) sem eliminar risco de reprocessamento no consumidor.
 
 ## Referências
 

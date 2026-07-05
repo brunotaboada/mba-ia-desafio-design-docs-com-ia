@@ -19,13 +19,13 @@ Sem política clara, o time enfrentaria escolha entre retry infinito (poluição
 - Controle operacional com intervenção humana para casos extremos.
 - Auditoria de ações administrativas sensíveis.
 
-## Opções Consideradas
+## Alternativas Consideradas
 
 1. **Cinco tentativas com backoff exponencial e dead letter queue separada** — progressão 1 min, 5 min, 30 min, 2 h, 12 h; após esgotar, mover para store de falhas permanentes com replay manual por administrador.
 2. **Três tentativas com backoff curto** — janela total de aproximadamente trinta minutos.
 3. **Retry indefinido com backoff crescente** — tentativas contínuas enquanto endpoint permanecer indisponível.
 
-## Resultado da Decisão
+## Decisão
 
 **Opção escolhida:** Cinco tentativas com backoff exponencial (1 min → 5 min → 30 min → 2 h → 12 h) e dead letter queue em store separada, porque cobre janela de quase quinze horas entre primeira falha e última tentativa — adequada a manutenções planejadas — sem manter eventos órfãos indefinidamente.
 
@@ -50,9 +50,19 @@ Falhas de timeout HTTP (dez segundos) ou respostas não bem-sucedidas contam com
 
 ## Consequências
 
-Engenharia modela transição entre store ativa e dead letter, incluindo metadados de falha. Operações ganha visibilidade de eventos não entregáveis automaticamente e ferramenta de replay com trilha de auditoria.
+### Positivas
 
-Clientes com indisponibilidade prolongada além da janela de retry dependem de reprocessamento manual ou integração alternativa. A política complementa a semântica at-least-once (ADR-005), pois replays podem gerar entregas duplicadas.
+- Cobre indisponibilidades de curto e médio prazo (~15 horas entre primeira falha e última tentativa).
+- Store ativa permanece legível para o worker; eventos falhos vão para dead letter separada.
+- Operações ganha evidência para debug e ferramenta de replay com trilha de auditoria.
+- Replay restrito a papel administrativo reduz risco de abuso.
+
+### Negativas
+
+- Cliente offline por mais de ~15 horas perde entrega automática (evento vai para dead letter).
+- Complexidade de duas stores e lógica de transição entre elas.
+- Replay manual exige intervenção humana em casos extremos.
+- Replays podem gerar entregas duplicadas, complementando a semântica at-least-once (ADR-005).
 
 ## Referências
 

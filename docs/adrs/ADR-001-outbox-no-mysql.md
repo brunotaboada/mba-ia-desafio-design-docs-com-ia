@@ -22,13 +22,13 @@ O time precisa de um mecanismo que garanta que todo status commitado gere um reg
 - Capacidade operacional limitada do time para manter infraestrutura adicional.
 - Alinhamento com o padrão de identificadores UUID já adotado no projeto.
 
-## Opções Consideradas
+## Alternativas Consideradas
 
 1. **Padrão Transactional Outbox no MySQL** — registrar evento na mesma transação da mudança de status; worker separado consome e entrega de forma assíncrona.
 2. **Disparo síncrono durante a transação de pedidos** — chamar o endpoint do cliente antes do commit.
 3. **Fila externa com Redis Streams** — publicar evento em broker dedicado após o commit.
 
-## Resultado da Decisão
+## Decisão
 
 **Opção escolhida:** Padrão Transactional Outbox no MySQL, porque garante atomicidade entre persistência do status e registro do evento usando infraestrutura existente, sem acoplar entregas HTTP ao caminho crítico de pedidos.
 
@@ -53,11 +53,19 @@ O evento é persistido junto à mudança de status; se o registro falhar, toda a
 
 ## Consequências
 
-A plataforma passa a ter uma store de eventos outbound acoplada transacionalmente ao ciclo de vida de pedidos. Engenharia deve modelar estados do evento (pendente, processando, entregue, falhou) com índices adequados para leitura pelo worker.
+### Positivas
 
-Operacionalmente, o arquivamento de eventos entregues após período prolongado fica fora do escopo desta fase. A entrega assíncrona introduz latência adicional em relação ao disparo síncrono, compensada pela resiliência e pelo isolamento do domínio de pedidos.
+- Consistência forte entre mudança de status e registro do evento na mesma transação.
+- Sem nova infraestrutura além do MySQL já em produção.
+- Worker pode falhar e reiniciar sem perder eventos já commitados.
+- Pré-requisito claro para consumo assíncrono (ADR-002) e snapshot de payload (ADR-007).
 
-Esta decisão é pré-requisito para ADR-002 (consumo por worker) e ADR-007 (formato do snapshot persistido).
+### Negativas
+
+- Crescimento de volume na store de eventos outbound ao longo do tempo.
+- Latência mínima de entrega depende do mecanismo de consumo adotado pelo worker (ADR-002).
+- Acoplamento leve entre o domínio de pedidos e a publicação de eventos.
+- Arquivamento de eventos entregues após período prolongado fica fora do escopo desta fase.
 
 ## Referências
 

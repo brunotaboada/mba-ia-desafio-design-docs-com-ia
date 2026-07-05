@@ -20,13 +20,13 @@ A engenharia de segurança exige mecanismo de assinatura reconhecido pelo mercad
 - Transporte criptografado obrigatório.
 - Limite de tamanho de payload para detectar anomalias.
 
-## Opções Consideradas
+## Alternativas Consideradas
 
 1. **HMAC-SHA256 sobre o corpo da requisição, secret única por endpoint, rotação com grace period de 24 horas** — assinatura enviada em header dedicado; TLS obrigatório.
 2. **Secret global compartilhada por toda a plataforma** — uma credencial para todos os clientes.
 3. **Assinatura assimétrica com par de chaves pública/privada** — cliente valida com chave pública da plataforma.
 
-## Resultado da Decisão
+## Decisão
 
 **Opção escolhida:** HMAC-SHA256 com secret única por endpoint e rotação com grace period de vinte e quatro horas, porque equilibra segurança, simplicidade de integração e práticas de mercado adotadas por provedores de referência.
 
@@ -53,9 +53,19 @@ Headers de entrega incluem identificadores de evento, assinatura, timestamp e en
 
 ## Consequências
 
-O módulo de webhooks incorpora geração segura de secrets, validação de URL e assinatura no worker de entrega. Clientes assumem responsabilidade de verificação HMAC e armazenamento seguro de credenciais.
+### Positivas
 
-Truncar payloads grandes foi explicitamente descartado — tamanho anômalo indica erro de sistema. A decisão complementa ADR-005 quanto aos headers de identificação de evento na entrega.
+- Cliente valida autenticidade e integridade com bibliotecas padrão de mercado.
+- Blast radius limitado por endpoint em caso de vazamento de credencial.
+- Grace period de vinte e quatro horas na rotação evita downtime na migração do cliente.
+- Rejeição de payloads acima de 64KB detecta anomalias sem truncar dados.
+
+### Negativas
+
+- Cliente assume responsabilidade de armazenar secret com segurança.
+- Lógica de duas secrets ativas durante rotação aumenta complexidade no worker.
+- Revisão de segurança obrigatória antes do deploy (dois dias úteis reservados).
+- Headers de entrega complementam ADR-005 (`X-Event-Id`) sem substituir verificação HMAC.
 
 ## Referências
 
