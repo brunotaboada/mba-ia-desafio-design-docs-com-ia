@@ -10,8 +10,8 @@
   <header class="site-header">
     <div class="commit-banner">
       <strong>source_commit:</strong>
-      <code id="source-commit">af89c168ca473aa3e204f3f14f2717f98963508d</code>
-      <span class="generated-at">gerado em 2026-07-05T13:54:50.580Z</span>
+      <code id="source-commit">a05f00c0af846280bdb680778a4ea2ae4ca32bd9</code>
+      <span class="generated-at">gerado em 2026-07-05T15:23:57.220Z</span>
     </div>
     <h1>Sistema de Webhooks — Design Docs</h1>
   </header>
@@ -88,8 +88,8 @@
 <p><strong>Incluído</strong></p>
 <ul>
 <li>Tabelas: configuração de webhook, outbox, dead letter, log de entregas.</li>
-<li>Módulo <code>src/modules/webhooks/</code> (CRUD, schemas, processor).</li>
-<li>Entry-point <code>src/worker.ts</code> e script <code>npm run worker</code>.</li>
+<li>Módulo <code>src/modules/webhooks/</code> <strong>(a criar na implementação)</strong> — CRUD, schemas, processor.</li>
+<li>Entry-point <code>src/worker.ts</code> <strong>(a criar na implementação)</strong> e script <code>npm run worker</code>.</li>
 <li>Integração em <code>OrderService.changeStatus</code> via <code>publishWebhookEvent(tx, ...)</code>.</li>
 <li>Endpoints autenticados de configuração e histórico de entregas.</li>
 <li>Endpoint ADMIN de replay de dead letter.</li>
@@ -443,7 +443,7 @@
 <td><code>requireRole</code></td>
 </tr>
 </tbody></table>
-<p>Classes em <code>src/modules/webhooks/webhook.errors.ts</code> estendendo <code>AppError</code> e erros HTTP existentes.</p>
+<p>Classes em <code>src/modules/webhooks/webhook.errors.ts</code> <strong>(a criar na implementação)</strong> estendendo <code>AppError</code> e erros HTTP existentes.</p>
 <hr>
 <h2>Estratégias de resiliência</h2>
 <table>
@@ -662,7 +662,19 @@
 </tr>
 <tr>
 <td><code>src/server.ts</code></td>
-<td>Referência de bootstrap para <code>src/worker.ts</code>.</td>
+<td>Referência de bootstrap para <code>src/worker.ts</code> <strong>(a criar na implementação)</strong>.</td>
+</tr>
+<tr>
+<td><code>src/modules/webhooks/</code> <strong>(a criar na implementação)</strong></td>
+<td>Módulo novo: CRUD, schemas, processor e <code>buildWebhookRouter</code>.</td>
+</tr>
+<tr>
+<td><code>src/modules/webhooks/webhook.errors.ts</code> <strong>(a criar na implementação)</strong></td>
+<td>Classes <code>Webhook*Error</code> com <code>errorCode</code> prefixado <code>WEBHOOK_</code>.</td>
+</tr>
+<tr>
+<td><code>src/worker.ts</code> <strong>(a criar na implementação)</strong></td>
+<td>Entry-point do worker de outbox (poll, entrega HTTP, retry, DLQ).</td>
 </tr>
 <tr>
 <td><code>src/routes/index.ts</code></td>

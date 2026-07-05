@@ -48,8 +48,8 @@ A feature adiciona notificação **outbound** desacoplada: registro transacional
 **Incluído**
 
 - Tabelas: configuração de webhook, outbox, dead letter, log de entregas.
-- Módulo `src/modules/webhooks/` (CRUD, schemas, processor).
-- Entry-point `src/worker.ts` e script `npm run worker`.
+- Módulo `src/modules/webhooks/` **(a criar na implementação)** — CRUD, schemas, processor.
+- Entry-point `src/worker.ts` **(a criar na implementação)** e script `npm run worker`.
 - Integração em `OrderService.changeStatus` via `publishWebhookEvent(tx, ...)`.
 - Endpoints autenticados de configuração e histórico de entregas.
 - Endpoint ADMIN de replay de dead letter.
@@ -385,7 +385,7 @@ Sem `items` no payload. Cliente consulta `GET /orders/:id` para detalhes complem
 | `WEBHOOK_DEAD_LETTER_NOT_FOUND` | 404 | ID DLQ inexistente no replay | Erro ao ADMIN |
 | `WEBHOOK_REPLAY_FORBIDDEN` | 403 | Replay sem role ADMIN | `requireRole` |
 
-Classes em `src/modules/webhooks/webhook.errors.ts` estendendo `AppError` e erros HTTP existentes.
+Classes em `src/modules/webhooks/webhook.errors.ts` **(a criar na implementação)** estendendo `AppError` e erros HTTP existentes.
 
 ---
 
@@ -517,6 +517,9 @@ Classes em `src/modules/webhooks/webhook.errors.ts` estendendo `AppError` e erro
 | `src/middlewares/error.middleware.ts` | Sem alteração: serializa `AppError` em JSON padronizado. |
 | `src/middlewares/auth.middleware.ts` | `authenticate` nas rotas de webhook; `requireRole('ADMIN')` no replay DLQ. |
 | `src/shared/logger/index.ts` | Logger Pino com redaction; logs de entrega e replay. |
-| `src/server.ts` | Referência de bootstrap para `src/worker.ts`. |
+| `src/server.ts` | Referência de bootstrap para `src/worker.ts` **(a criar na implementação)**. |
+| `src/modules/webhooks/` **(a criar na implementação)** | Módulo novo: CRUD, schemas, processor e `buildWebhookRouter`. |
+| `src/modules/webhooks/webhook.errors.ts` **(a criar na implementação)** | Classes `Webhook*Error` com `errorCode` prefixado `WEBHOOK_`. |
+| `src/worker.ts` **(a criar na implementação)** | Entry-point do worker de outbox (poll, entrega HTTP, retry, DLQ). |
 | `src/routes/index.ts` | Registrar `buildWebhookRouter` em `/webhooks` e admin em `/admin/webhooks`. |
 | `prisma/schema.prisma` | Models `Webhook`, `WebhookOutbox`, `WebhookDeadLetter`, `WebhookDelivery`. |
