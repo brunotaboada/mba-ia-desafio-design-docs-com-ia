@@ -72,6 +72,26 @@ function resolveNavHref(href: string, depth: number): string {
   return `${'../'.repeat(depth)}${href}`;
 }
 
+function rewriteMarkdownHref(href: string): string {
+  const hashIndex = href.indexOf('#');
+  const path = hashIndex === -1 ? href : href.slice(0, hashIndex);
+  const fragment = hashIndex === -1 ? '' : href.slice(hashIndex);
+
+  if (!path.endsWith('.md')) return href;
+
+  const segments = path.split('/');
+  const file = segments[segments.length - 1];
+  segments[segments.length - 1] = `${slugify(file)}.html`;
+  return `${segments.join('/')}${fragment}`;
+}
+
+function rewriteIntraSiteLinks(html: string): string {
+  return html.replace(/href="([^"]+)"/g, (match, href: string) => {
+    const rewritten = rewriteMarkdownHref(href);
+    return rewritten === href ? match : `href="${rewritten}"`;
+  });
+}
+
 function renderPage(
   title: string,
   bodyHtml: string,
@@ -131,7 +151,7 @@ export function generateSite(sourceCommit?: string): string {
 
   for (const file of files) {
     const md = readFileSync(file.abs, 'utf8');
-    const body = marked.parse(md) as string;
+    const body = rewriteIntraSiteLinks(marked.parse(md) as string);
     const title = basename(file.rel, '.md');
     const inAdr = file.rel.startsWith('docs/adrs/');
     const outDir = inAdr ? join(SITE_DIR, 'adrs') : SITE_DIR;

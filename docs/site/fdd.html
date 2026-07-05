@@ -10,8 +10,8 @@
   <header class="site-header">
     <div class="commit-banner">
       <strong>source_commit:</strong>
-      <code id="source-commit">2389e565277d8e865686784734d93a018293eac5</code>
-      <span class="generated-at">gerado em 2026-07-05T16:01:53.860Z</span>
+      <code id="source-commit">dd03c85908d1bec72e1f800374c37668044cf21b</code>
+      <span class="generated-at">gerado em 2026-07-05T16:07:39.119Z</span>
     </div>
     <h1>Sistema de Webhooks — Design Docs</h1>
   </header>
@@ -33,11 +33,11 @@
     <main class="content prose">
       <h1>FDD — Sistema de Webhooks de Notificação de Pedidos</h1>
 <p>Versão: 1.0<br>Data: 07-11-2025<br>Responsável: Bruno (Engenharia — Pedidos)</p>
-<p>Referências: <a href="./RFC.md">RFC</a> · <a href="./adrs/">ADRs</a></p>
+<p>Referências: <a href="./rfc.html">RFC</a> · <a href="./adrs/">ADRs</a></p>
 <hr>
 <h2>Contexto e motivação técnica</h2>
 <p>O OMS persiste mudanças de status de pedidos em transação (<code>changeStatus</code>): atualiza <code>orders</code>, insere <code>order_status_history</code> e ajusta estoque. Não existe hoje publicação de eventos nem integração outbound. Clientes B2B fazem polling em <code>GET /orders</code>, gerando carga e latência na integração.</p>
-<p>A feature adiciona notificação <strong>outbound</strong> desacoplada: registro transacional na outbox (mesma transação do status) e entrega HTTP assíncrona por worker separado. A solução implementa as decisões do <a href="./RFC.md">RFC</a> e dos <a href="./adrs/">ADRs</a>: outbox (<a href="./adrs/ADR-001-outbox-no-mysql.md">ADR-001</a>), worker (<a href="./adrs/ADR-002-worker-polling-processo-separado.md">ADR-002</a>), retry/DLQ (<a href="./adrs/ADR-003-retry-backoff-dlq.md">ADR-003</a>), HMAC (<a href="./adrs/ADR-004-hmac-sha256-secret-por-endpoint.md">ADR-004</a>), at-least-once (<a href="./adrs/ADR-005-at-least-once-x-event-id.md">ADR-005</a>), padrões do projeto (<a href="./adrs/ADR-006-reuso-padroes-projeto.md">ADR-006</a>), snapshot (<a href="./adrs/ADR-007-payload-snapshot-na-insercao.md">ADR-007</a>).</p>
+<p>A feature adiciona notificação <strong>outbound</strong> desacoplada: registro transacional na outbox (mesma transação do status) e entrega HTTP assíncrona por worker separado. A solução implementa as decisões do <a href="./rfc.html">RFC</a> e dos <a href="./adrs/">ADRs</a>: outbox (<a href="./adrs/adr-001-outbox-no-mysql.html">ADR-001</a>), worker (<a href="./adrs/adr-002-worker-polling-processo-separado.html">ADR-002</a>), retry/DLQ (<a href="./adrs/adr-003-retry-backoff-dlq.html">ADR-003</a>), HMAC (<a href="./adrs/adr-004-hmac-sha256-secret-por-endpoint.html">ADR-004</a>), at-least-once (<a href="./adrs/adr-005-at-least-once-x-event-id.html">ADR-005</a>), padrões do projeto (<a href="./adrs/adr-006-reuso-padroes-projeto.html">ADR-006</a>), snapshot (<a href="./adrs/adr-007-payload-snapshot-na-insercao.html">ADR-007</a>).</p>
 <p><strong>Atores</strong></p>
 <table>
 <thead>
@@ -101,8 +101,8 @@
 <li>Dashboard visual / painel frontend.</li>
 <li>Webhooks inbound (cliente para plataforma).</li>
 <li>Arquivamento automático de outbox após 30 dias.</li>
-<li>Rate limiting de saída por cliente (adiado; ver <a href="./RFC.md">RFC</a>).</li>
-<li>Multi-worker com ordering global (adiado; ver <a href="./RFC.md">RFC</a>).</li>
+<li>Rate limiting de saída por cliente (adiado; ver <a href="./rfc.html">RFC</a>).</li>
+<li>Multi-worker com ordering global (adiado; ver <a href="./rfc.html">RFC</a>).</li>
 </ul>
 <hr>
 <h2>Fluxos detalhados</h2>

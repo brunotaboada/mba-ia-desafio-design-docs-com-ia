@@ -10,8 +10,8 @@
   <header class="site-header">
     <div class="commit-banner">
       <strong>source_commit:</strong>
-      <code id="source-commit">2389e565277d8e865686784734d93a018293eac5</code>
-      <span class="generated-at">gerado em 2026-07-05T16:01:53.860Z</span>
+      <code id="source-commit">dd03c85908d1bec72e1f800374c37668044cf21b</code>
+      <span class="generated-at">gerado em 2026-07-05T16:07:39.119Z</span>
     </div>
     <h1>Sistema de Webhooks — Design Docs</h1>
   </header>
@@ -33,7 +33,7 @@
     <main class="content prose">
       <h1>PRD — Sistema de Webhooks de Notificação de Pedidos</h1>
 <p>Versão: 1.0<br>Data: 07-11-2025<br>Responsável: Marcos (Product Manager)</p>
-<p>Referências técnicas: <a href="./RFC.md">RFC</a> · <a href="./FDD.md">FDD</a> · <a href="./adrs/">ADRs</a></p>
+<p>Referências técnicas: <a href="./rfc.html">RFC</a> · <a href="./fdd.html">FDD</a> · <a href="./adrs/">ADRs</a></p>
 <hr>
 <h2>Resumo e contexto da feature</h2>
 <p>O OMS atende clientes B2B que precisam reagir rapidamente a mudanças no status de pedidos. Hoje a integração depende de polling frequente em <code>GET /orders</code>, o que é lento, caro e frágil. Três clientes (Atlas Comercial, MaxDistribuição e Nova Cargo) formalizaram a necessidade; a Atlas condiciona permanência na plataforma à entrega da feature até o fim do trimestre.</p>
@@ -68,7 +68,7 @@
 <li><strong>Clientes B2B integradores</strong> (Atlas, MaxDistribuição, Nova Cargo e futuros): recebem eventos e atualizam ERP/WMS.</li>
 <li><strong>Usuários operadores do OMS</strong>: configuram webhooks via API autenticada em nome de um <code>customer_id</code>.</li>
 <li><strong>Operadores ADMIN</strong>: reprocessam eventos em dead letter quando necessário.</li>
-<li><strong>Time de engenharia</strong>: implementa e opera o sistema (detalhes no <a href="./FDD.md">FDD</a>).</li>
+<li><strong>Time de engenharia</strong>: implementa e opera o sistema (detalhes no <a href="./fdd.html">FDD</a>).</li>
 </ul>
 <p><strong>Cenários de uso</strong></p>
 <ol>
@@ -225,7 +225,7 @@
 <td>Must</td>
 </tr>
 </tbody></table>
-<p>Detalhes de contratos HTTP no <a href="./FDD.md">FDD</a>.</p>
+<p>Detalhes de contratos HTTP no <a href="./fdd.html">FDD</a>.</p>
 <hr>
 <h2>Requisitos não funcionais</h2>
 <table>
@@ -289,27 +289,27 @@
 <tbody><tr>
 <td>Outbox transacional no MySQL</td>
 <td>Latência mínima ~2s vs. disparo síncrono</td>
-<td><a href="./adrs/ADR-001-outbox-no-mysql.md">ADR-001</a></td>
+<td><a href="./adrs/adr-001-outbox-no-mysql.html">ADR-001</a></td>
 </tr>
 <tr>
 <td>Worker separado com polling</td>
 <td>Processo operacional extra vs. resiliência a deploys</td>
-<td><a href="./adrs/ADR-002-worker-polling-processo-separado.md">ADR-002</a></td>
+<td><a href="./adrs/adr-002-worker-polling-processo-separado.html">ADR-002</a></td>
 </tr>
 <tr>
 <td>At-least-once (não exactly-once)</td>
 <td>Cliente deve deduplicar vs. complexidade bilateral</td>
-<td><a href="./adrs/ADR-005-at-least-once-x-event-id.md">ADR-005</a></td>
+<td><a href="./adrs/adr-005-at-least-once-x-event-id.html">ADR-005</a></td>
 </tr>
 <tr>
 <td>Retry limitado (5x) + DLQ</td>
 <td>Cliente offline &gt;15h perde entrega automática vs. retry eterno</td>
-<td><a href="./adrs/ADR-003-retry-backoff-dlq.md">ADR-003</a></td>
+<td><a href="./adrs/adr-003-retry-backoff-dlq.html">ADR-003</a></td>
 </tr>
 <tr>
 <td>Secret por endpoint + HMAC</td>
 <td>Gestão de secrets no cliente vs. secret global</td>
-<td><a href="./adrs/ADR-004-hmac-sha256-secret-por-endpoint.md">ADR-004</a></td>
+<td><a href="./adrs/adr-004-hmac-sha256-secret-por-endpoint.html">ADR-004</a></td>
 </tr>
 <tr>
 <td>Sem email/dashboard na v1</td>
@@ -397,7 +397,7 @@
 <td><strong>Volume alto de eventos sem rate limit</strong></td>
 <td>Baixa</td>
 <td>Médio — sobrecarga no cliente</td>
-<td>Monitorar em produção; rate limiting adiado conforme <a href="./RFC.md">RFC</a></td>
+<td>Monitorar em produção; rate limiting adiado conforme <a href="./rfc.html">RFC</a></td>
 </tr>
 </tbody></table>
 <hr>
@@ -420,7 +420,7 @@
 <li><input disabled="" type="checkbox"> Nenhum envio de email de alerta implementado.</li>
 <li><input disabled="" type="checkbox"> Nenhum painel visual de webhooks implementado.</li>
 </ul>
-<p>Critérios técnicos detalhados no <a href="./FDD.md">FDD</a>, seção &quot;Critérios de aceite técnicos&quot;.</p>
+<p>Critérios técnicos detalhados no <a href="./fdd.html">FDD</a>, seção &quot;Critérios de aceite técnicos&quot;.</p>
 <hr>
 <h2>Estratégia de testes e validação</h2>
 <table>

@@ -10,8 +10,8 @@
   <header class="site-header">
     <div class="commit-banner">
       <strong>source_commit:</strong>
-      <code id="source-commit">2389e565277d8e865686784734d93a018293eac5</code>
-      <span class="generated-at">gerado em 2026-07-05T16:01:53.860Z</span>
+      <code id="source-commit">dd03c85908d1bec72e1f800374c37668044cf21b</code>
+      <span class="generated-at">gerado em 2026-07-05T16:07:39.119Z</span>
     </div>
     <h1>Sistema de Webhooks — Design Docs</h1>
   </header>
@@ -59,7 +59,7 @@
 </tbody></table>
 <hr>
 <h2>Resumo executivo (TL;DR)</h2>
-<p>Propomos um <strong>sistema outbound de webhooks</strong> acoplado à máquina de estados de pedidos do OMS: eventos registrados via <strong>Transactional Outbox no MySQL</strong> na mesma transação da mudança de status; <strong>worker em processo separado</strong> consome a outbox por polling (2s) e entrega HTTP com <strong>HMAC-SHA256</strong>, semântica <strong>at-least-once</strong> e identificador <strong><code>X-Event-Id</code></strong>; falhas seguem <strong>retry com backoff</strong> (5 tentativas) e <strong>dead letter queue</strong> com replay manual por ADMIN. Novo módulo <code>webhooks</code> reutiliza padrões existentes (erros tipados, Pino, middlewares). Detalhes de implementação, contratos HTTP e matriz de erros ficam no <a href="./FDD.md">FDD</a>; decisões fechadas estão nos <a href="./adrs/">ADRs</a>.</p>
+<p>Propomos um <strong>sistema outbound de webhooks</strong> acoplado à máquina de estados de pedidos do OMS: eventos registrados via <strong>Transactional Outbox no MySQL</strong> na mesma transação da mudança de status; <strong>worker em processo separado</strong> consome a outbox por polling (2s) e entrega HTTP com <strong>HMAC-SHA256</strong>, semântica <strong>at-least-once</strong> e identificador <strong><code>X-Event-Id</code></strong>; falhas seguem <strong>retry com backoff</strong> (5 tentativas) e <strong>dead letter queue</strong> com replay manual por ADMIN. Novo módulo <code>webhooks</code> reutiliza padrões existentes (erros tipados, Pino, middlewares). Detalhes de implementação, contratos HTTP e matriz de erros ficam no <a href="./fdd.html">FDD</a>; decisões fechadas estão nos <a href="./adrs/">ADRs</a>.</p>
 <hr>
 <h2>Contexto e problema</h2>
 <p>Três clientes B2B (Atlas Comercial, MaxDistribuição e Nova Cargo) exigem notificação quando o status de pedidos muda. Hoje dependem de polling em <code>GET /orders</code>, o que torna integrações lentas, caras e frágeas. Para o negócio, atraso na entrega representa risco de churn (Atlas citou migração para concorrente se não houver solução até fim do trimestre).</p>
@@ -83,17 +83,17 @@
 </code></pre>
 <h3>Componentes principais</h3>
 <ol>
-<li><p><strong>Publicação transacional</strong> — Na mudança de status, inserir evento na outbox dentro da mesma transação que persiste pedido e histórico. Rollback da transação descarta o evento. Filtro por status subscrito ocorre na inserção (<a href="./adrs/ADR-007-payload-snapshot-na-insercao.md">ADR-007</a>).</p>
+<li><p><strong>Publicação transacional</strong> — Na mudança de status, inserir evento na outbox dentro da mesma transação que persiste pedido e histórico. Rollback da transação descarta o evento. Filtro por status subscrito ocorre na inserção (<a href="./adrs/adr-007-payload-snapshot-na-insercao.html">ADR-007</a>).</p>
 </li>
-<li><p><strong>Consumo assíncrono</strong> — Worker Node.js independente da API, polling a cada 2s, batch de pendentes, timeout HTTP de 10s (<a href="./adrs/ADR-002-worker-polling-processo-separado.md">ADR-002</a>).</p>
+<li><p><strong>Consumo assíncrono</strong> — Worker Node.js independente da API, polling a cada 2s, batch de pendentes, timeout HTTP de 10s (<a href="./adrs/adr-002-worker-polling-processo-separado.html">ADR-002</a>).</p>
 </li>
-<li><p><strong>Resiliência de entrega</strong> — Cinco tentativas com backoff (1m → 5m → 30m → 2h → 12h); após esgotar, evento vai para dead letter; replay manual restrito a ADMIN (<a href="./adrs/ADR-003-retry-backoff-dlq.md">ADR-003</a>).</p>
+<li><p><strong>Resiliência de entrega</strong> — Cinco tentativas com backoff (1m → 5m → 30m → 2h → 12h); após esgotar, evento vai para dead letter; replay manual restrito a ADMIN (<a href="./adrs/adr-003-retry-backoff-dlq.html">ADR-003</a>).</p>
 </li>
-<li><p><strong>Segurança</strong> — HMAC-SHA256 no corpo, secret por endpoint, rotação com grace de 24h, TLS obrigatório (<a href="./adrs/ADR-004-hmac-sha256-secret-por-endpoint.md">ADR-004</a>).</p>
+<li><p><strong>Segurança</strong> — HMAC-SHA256 no corpo, secret por endpoint, rotação com grace de 24h, TLS obrigatório (<a href="./adrs/adr-004-hmac-sha256-secret-por-endpoint.html">ADR-004</a>).</p>
 </li>
-<li><p><strong>Semântica de entrega</strong> — At-least-once com <code>X-Event-Id</code>; deduplicação no cliente (<a href="./adrs/ADR-005-at-least-once-x-event-id.md">ADR-005</a>).</p>
+<li><p><strong>Semântica de entrega</strong> — At-least-once com <code>X-Event-Id</code>; deduplicação no cliente (<a href="./adrs/adr-005-at-least-once-x-event-id.html">ADR-005</a>).</p>
 </li>
-<li><p><strong>Organização do código</strong> — Módulo <code>src/modules/webhooks/</code> <strong>(a criar na implementação)</strong>, seguindo convenções do OMS; integração mínima em <code>changeStatus</code> (<a href="./adrs/ADR-006-reuso-padroes-projeto.md">ADR-006</a>).</p>
+<li><p><strong>Organização do código</strong> — Módulo <code>src/modules/webhooks/</code> <strong>(a criar na implementação)</strong>, seguindo convenções do OMS; integração mínima em <code>changeStatus</code> (<a href="./adrs/adr-006-reuso-padroes-projeto.html">ADR-006</a>).</p>
 </li>
 </ol>
 <h3>API de configuração e operação</h3>
@@ -239,45 +239,45 @@
 <tbody><tr>
 <td>ADR-001</td>
 <td>Padrão Outbox no MySQL</td>
-<td><a href="./adrs/ADR-001-outbox-no-mysql.md">ADR-001-outbox-no-mysql.md</a></td>
+<td><a href="./adrs/adr-001-outbox-no-mysql.html">ADR-001-outbox-no-mysql.md</a></td>
 </tr>
 <tr>
 <td>ADR-002</td>
 <td>Worker em processo separado com polling</td>
-<td><a href="./adrs/ADR-002-worker-polling-processo-separado.md">ADR-002-worker-polling-processo-separado.md</a></td>
+<td><a href="./adrs/adr-002-worker-polling-processo-separado.html">ADR-002-worker-polling-processo-separado.md</a></td>
 </tr>
 <tr>
 <td>ADR-003</td>
 <td>Retry com backoff e DLQ</td>
-<td><a href="./adrs/ADR-003-retry-backoff-dlq.md">ADR-003-retry-backoff-dlq.md</a></td>
+<td><a href="./adrs/adr-003-retry-backoff-dlq.html">ADR-003-retry-backoff-dlq.md</a></td>
 </tr>
 <tr>
 <td>ADR-004</td>
 <td>HMAC-SHA256 com secret por endpoint</td>
-<td><a href="./adrs/ADR-004-hmac-sha256-secret-por-endpoint.md">ADR-004-hmac-sha256-secret-por-endpoint.md</a></td>
+<td><a href="./adrs/adr-004-hmac-sha256-secret-por-endpoint.html">ADR-004-hmac-sha256-secret-por-endpoint.md</a></td>
 </tr>
 <tr>
 <td>ADR-005</td>
 <td>At-least-once com X-Event-Id</td>
-<td><a href="./adrs/ADR-005-at-least-once-x-event-id.md">ADR-005-at-least-once-x-event-id.md</a></td>
+<td><a href="./adrs/adr-005-at-least-once-x-event-id.html">ADR-005-at-least-once-x-event-id.md</a></td>
 </tr>
 <tr>
 <td>ADR-006</td>
 <td>Reuso dos padrões do projeto</td>
-<td><a href="./adrs/ADR-006-reuso-padroes-projeto.md">ADR-006-reuso-padroes-projeto.md</a></td>
+<td><a href="./adrs/adr-006-reuso-padroes-projeto.html">ADR-006-reuso-padroes-projeto.md</a></td>
 </tr>
 <tr>
 <td>ADR-007</td>
 <td>Snapshot de payload na inserção</td>
-<td><a href="./adrs/ADR-007-payload-snapshot-na-insercao.md">ADR-007-payload-snapshot-na-insercao.md</a></td>
+<td><a href="./adrs/adr-007-payload-snapshot-na-insercao.html">ADR-007-payload-snapshot-na-insercao.md</a></td>
 </tr>
 </tbody></table>
 <hr>
 <h2>Próximos passos</h2>
 <ol>
 <li>Revisão deste RFC pelos revisores listados nos metadados.</li>
-<li>Produção do <a href="./FDD.md">FDD</a> com contratos HTTP, fluxos detalhados e integração com código existente.</li>
-<li>Consolidação do <a href="./PRD.md">PRD</a> com requisitos de negócio e métricas.</li>
+<li>Produção do <a href="./fdd.html">FDD</a> com contratos HTTP, fluxos detalhados e integração com código existente.</li>
+<li>Consolidação do <a href="./prd.html">PRD</a> com requisitos de negócio e métricas.</li>
 <li>Início da implementação após aprovação do RFC e FDD.</li>
 </ol>
 

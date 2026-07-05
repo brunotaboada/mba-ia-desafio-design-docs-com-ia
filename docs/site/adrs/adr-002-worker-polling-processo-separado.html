@@ -10,8 +10,8 @@
   <header class="site-header">
     <div class="commit-banner">
       <strong>source_commit:</strong>
-      <code id="source-commit">2389e565277d8e865686784734d93a018293eac5</code>
-      <span class="generated-at">gerado em 2026-07-05T16:01:53.860Z</span>
+      <code id="source-commit">dd03c85908d1bec72e1f800374c37668044cf21b</code>
+      <span class="generated-at">gerado em 2026-07-05T16:07:39.119Z</span>
     </div>
     <h1>Sistema de Webhooks — Design Docs</h1>
   </header>
@@ -32,7 +32,7 @@
     </nav>
     <main class="content prose">
       <h1>ADR-002: Worker em Processo Separado com Polling</h1>
-<p><strong>Status:</strong> Aceito<br><strong>Date:</strong> 07-11-2025<br><strong>Depends on:</strong> <a href="./ADR-001-outbox-no-mysql.md">ADR-001: Padrão Outbox no MySQL</a><br><strong>Used by:</strong> <a href="./ADR-003-retry-backoff-dlq.md">ADR-003: Política de Retry com Backoff Exponencial e DLQ</a><br><strong>Related to:</strong> <a href="./ADR-006-reuso-padroes-projeto.md">ADR-006: Reuso dos Padrões Existentes do Projeto</a></p>
+<p><strong>Status:</strong> Aceito<br><strong>Date:</strong> 07-11-2025<br><strong>Depends on:</strong> <a href="./adr-001-outbox-no-mysql.html">ADR-001: Padrão Outbox no MySQL</a><br><strong>Used by:</strong> <a href="./adr-003-retry-backoff-dlq.html">ADR-003: Política de Retry com Backoff Exponencial e DLQ</a><br><strong>Related to:</strong> <a href="./adr-006-reuso-padroes-projeto.html">ADR-006: Reuso dos Padrões Existentes do Projeto</a></p>
 <h2>Contexto</h2>
 <p>Com o padrão outbox adotado (ADR-001), eventos de notificação ficam persistidos no MySQL aguardando entrega HTTP aos endpoints cadastrados pelos clientes. É necessário definir como esses eventos serão consumidos e transformados em chamadas outbound.</p>
 <p>O requisito de negócio aceita latência abaixo de dez segundos como equivalente a tempo real. A API principal já possui entry-point dedicado com bootstrap, logging estruturado e encerramento gracioso; o mecanismo de entrega deve coexistir sem comprometer disponibilidade da API durante deploys ou reinícios.</p>
