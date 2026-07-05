@@ -10,8 +10,8 @@
   <header class="site-header">
     <div class="commit-banner">
       <strong>source_commit:</strong>
-      <code id="source-commit">6ea0a8e2719f5df6b51bab35a082f9f8ea744a47</code>
-      <span class="generated-at">gerado em 2026-07-05T13:53:35.768Z</span>
+      <code id="source-commit">af89c168ca473aa3e204f3f14f2717f98963508d</code>
+      <span class="generated-at">gerado em 2026-07-05T13:54:50.580Z</span>
     </div>
     <h1>Sistema de Webhooks — Design Docs</h1>
   </header>
@@ -110,7 +110,10 @@
 <ol>
 <li>Cliente da API chama <code>PATCH /orders/:id/status</code> (fluxo existente).</li>
 <li><code>OrderService.changeStatus</code> inicia transação Prisma.</li>
-<li>Valida transição (<code>order.status.ts</code>), estoque, atualiza pedido e histórico.</li>
+<li>Valida transição (<code>order.status.ts</code>), estoque, atualiza pedido e histórico.<ul>
+<li>Transições elegíveis incluem cancelamento pós-envio (<strong><code>SHIPPED → CANCELLED</code></strong>), com reposição de estoque via <code>shouldReplenishStock</code>.</li>
+</ul>
+</li>
 <li><code>publishWebhookEvent(tx, order, fromStatus, toStatus)</code>:<ul>
 <li>Busca webhooks ativos do <code>customer_id</code> que assinam <code>toStatus</code>.</li>
 <li>Se nenhum assinante: retorna sem inserir.</li>
@@ -357,6 +360,14 @@
   &quot;to_status&quot;: &quot;PROCESSING&quot;,
   &quot;customer_id&quot;: &quot;a1b2c3d4-e5f6-7890-abcd-ef1234567890&quot;,
   &quot;total_cents&quot;: 15000
+}
+</code></pre>
+<p>Exemplo adicional — cancelamento após envio:</p>
+<pre><code class="language-json">{
+  &quot;event_type&quot;: &quot;order.status_changed&quot;,
+  &quot;from_status&quot;: &quot;SHIPPED&quot;,
+  &quot;to_status&quot;: &quot;CANCELLED&quot;,
+  &quot;order_id&quot;: &quot;550e8400-e29b-41d4-a716-446655440000&quot;
 }
 </code></pre>
 <p>Sem <code>items</code> no payload. Cliente consulta <code>GET /orders/:id</code> para detalhes complementares.</p>
@@ -627,7 +638,7 @@
 </tr>
 <tr>
 <td><code>src/modules/orders/order.status.ts</code></td>
-<td><code>OrderStatus</code> e <code>canTransition</code> definem transições válidas; <code>subscribedStatuses</code> filtra quais <code>toStatus</code> geram evento.</td>
+<td><code>OrderStatus</code> e <code>canTransition</code> definem transições válidas (inclui <strong><code>SHIPPED → CANCELLED</code></strong> além de <code>SHIPPED → DELIVERED</code>); <code>subscribedStatuses</code> filtra quais <code>toStatus</code> geram evento; <code>shouldReplenishStock</code> repõe estoque ao cancelar de <code>SHIPPED</code>.</td>
 </tr>
 <tr>
 <td><code>src/shared/errors/app-error.ts</code></td>

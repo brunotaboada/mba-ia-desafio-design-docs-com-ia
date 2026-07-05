@@ -10,8 +10,8 @@
   <header class="site-header">
     <div class="commit-banner">
       <strong>source_commit:</strong>
-      <code id="source-commit">6ea0a8e2719f5df6b51bab35a082f9f8ea744a47</code>
-      <span class="generated-at">gerado em 2026-07-05T13:53:35.768Z</span>
+      <code id="source-commit">af89c168ca473aa3e204f3f14f2717f98963508d</code>
+      <span class="generated-at">gerado em 2026-07-05T13:54:50.580Z</span>
     </div>
     <h1>Sistema de Webhooks — Design Docs</h1>
   </header>
@@ -35,7 +35,7 @@
 <p><strong>Status:</strong> Aceito<br><strong>Date:</strong> 07-11-2025<br><strong>Depends on:</strong> <a href="./ADR-001-outbox-no-mysql.md">ADR-001: Padrão Outbox no MySQL</a><br><strong>Related to:</strong> <a href="./ADR-004-hmac-sha256-secret-por-endpoint.md">ADR-004: Autenticação HMAC-SHA256 com Secret por Endpoint</a></p>
 <h2>Contexto</h2>
 <p>Eventos na outbox (ADR-001) precisam de conteúdo para entrega HTTP aos clientes. Uma abordagem alternativa seria montar o payload no momento do envio, consultando novamente o estado atual do pedido no banco.</p>
-<p>Porém o pedido pode sofrer alterações após a transição de status — campos auxiliares, ajustes futuros — gerando inconsistência entre o instante do evento de negócio e o conteúdo entregue ao cliente. O time também precisa evitar inserir eventos para combinações pedido-status sem assinantes configurados.</p>
+<p>A máquina de estados em <code>order.status.ts</code> governa quais pares origem/destino geram evento (ex.: <strong><code>SHIPPED → DELIVERED</code></strong> e <strong><code>SHIPPED → CANCELLED</code></strong>). Porém o pedido pode sofrer alterações após a transição de status — campos auxiliares, ajustes futuros — gerando inconsistência entre o instante do evento de negócio e o conteúdo entregue ao cliente. O time também precisa evitar inserir eventos para combinações pedido-status sem assinantes configurados.</p>
 <h2>Fatores de Decisão</h2>
 <ul>
 <li>Fidelidade do payload ao instante da transição de status.</li>
@@ -52,7 +52,7 @@
 </ol>
 <h2>Decisão</h2>
 <p><strong>Opção escolhida:</strong> Snapshot JSON persistido no momento da inserção na outbox, porque garante que o evento reflete o estado do pedido no instante da transição, independentemente de alterações posteriores.</p>
-<p>O payload inclui identificador de evento, tipo de evento de mudança de status, timestamp ISO 8601, identificadores e número do pedido, status origem e destino, cliente e valor total — sem itens de linha, mantendo envelope enxuto. Cliente que necessitar detalhes complementares consulta API de pedidos existente. Se nenhum endpoint do cliente assina o status destino, nenhuma linha é inserida na store.</p>
+<p>O payload inclui identificador de evento, tipo de evento de mudança de status, timestamp ISO 8601, identificadores e número do pedido, status origem e destino, cliente e valor total — sem itens de linha, mantendo envelope enxuto. Transições definidas em <code>order.status.ts</code> incluem <strong><code>SHIPPED → CANCELLED</code></strong>; se o webhook assina <code>CANCELLED</code>, o snapshot registra origem <code>SHIPPED</code> e destino <code>CANCELLED</code>. Cliente que necessitar detalhes complementares consulta API de pedidos existente. Se nenhum endpoint do cliente assina o status destino, nenhuma linha é inserida na store.</p>
 <h2>Prós e Contras das Opções</h2>
 <h3>Snapshot na inserção</h3>
 <ul>

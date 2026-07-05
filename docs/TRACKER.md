@@ -168,3 +168,4 @@ Mapeamento de itens documentados à origem na transcrição (`TRANSCRICAO.md`) o
 | FDD-ERR-08 | docs/FDD.md | Decisão | WEBHOOK_DEAD_LETTER_NOT_FOUND no replay | TRANSCRICAO | [09:18] Diego |
 | FDD-ERR-09 | docs/FDD.md | Decisão | WEBHOOK_REPLAY_FORBIDDEN sem role ADMIN | TRANSCRICAO | [09:36] Sofia |
 | FDD-CON-08 | docs/FDD.md | Requisito Funcional | DELETE /api/webhooks/:id remove webhook | TRANSCRICAO | [09:33] Bruno |
+| FDD-COD-01 | docs/FDD.md | Decisão | Transição SHIPPED → CANCELLED gera evento webhook | CODIGO | src/modules/orders/order.status.ts |

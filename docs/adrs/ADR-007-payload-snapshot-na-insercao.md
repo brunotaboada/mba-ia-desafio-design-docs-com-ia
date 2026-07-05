@@ -9,7 +9,7 @@
 
 Eventos na outbox (ADR-001) precisam de conteúdo para entrega HTTP aos clientes. Uma abordagem alternativa seria montar o payload no momento do envio, consultando novamente o estado atual do pedido no banco.
 
-Porém o pedido pode sofrer alterações após a transição de status — campos auxiliares, ajustes futuros — gerando inconsistência entre o instante do evento de negócio e o conteúdo entregue ao cliente. O time também precisa evitar inserir eventos para combinações pedido-status sem assinantes configurados.
+A máquina de estados em `order.status.ts` governa quais pares origem/destino geram evento (ex.: **`SHIPPED → DELIVERED`** e **`SHIPPED → CANCELLED`**). Porém o pedido pode sofrer alterações após a transição de status — campos auxiliares, ajustes futuros — gerando inconsistência entre o instante do evento de negócio e o conteúdo entregue ao cliente. O time também precisa evitar inserir eventos para combinações pedido-status sem assinantes configurados.
 
 ## Fatores de Decisão
 
@@ -29,7 +29,7 @@ Porém o pedido pode sofrer alterações após a transição de status — campo
 
 **Opção escolhida:** Snapshot JSON persistido no momento da inserção na outbox, porque garante que o evento reflete o estado do pedido no instante da transição, independentemente de alterações posteriores.
 
-O payload inclui identificador de evento, tipo de evento de mudança de status, timestamp ISO 8601, identificadores e número do pedido, status origem e destino, cliente e valor total — sem itens de linha, mantendo envelope enxuto. Cliente que necessitar detalhes complementares consulta API de pedidos existente. Se nenhum endpoint do cliente assina o status destino, nenhuma linha é inserida na store.
+O payload inclui identificador de evento, tipo de evento de mudança de status, timestamp ISO 8601, identificadores e número do pedido, status origem e destino, cliente e valor total — sem itens de linha, mantendo envelope enxuto. Transições definidas em `order.status.ts` incluem **`SHIPPED → CANCELLED`**; se o webhook assina `CANCELLED`, o snapshot registra origem `SHIPPED` e destino `CANCELLED`. Cliente que necessitar detalhes complementares consulta API de pedidos existente. Se nenhum endpoint do cliente assina o status destino, nenhuma linha é inserida na store.
 
 ## Prós e Contras das Opções
 

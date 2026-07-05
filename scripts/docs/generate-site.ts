@@ -162,5 +162,5 @@ export function generateSite(sourceCommit?: string): string {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  generateSite();
+  generateSite(process.argv[2]);
 }

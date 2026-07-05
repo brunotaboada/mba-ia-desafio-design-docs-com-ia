@@ -36,6 +36,7 @@ Segui a ordem sugerida pelo enunciado, com o Tracker crescendo a cada documento:
 5. **PRD** — Consolidação de negócio (10 FRs, 10 NFRs, métricas, riscos) com base nos docs técnicos.
 6. **Tracker** — ~164 linhas ligando itens a `[hh:mm] Nome` ou caminho de código.
 7. **README do processo** — Este arquivo, após revisão da checklist.
+8. **Parte 2** — Site HTML, `npm run docs:update`, demonstração com `fase-2/`.
 
 Interação com a IA: prompts **dirigidos** (com trechos da transcrição e paths de arquivo), revisão crítica a cada entrega, e correção explícita quando o formato ou o conteúdo não batia com a rubrica.
 
@@ -113,12 +114,15 @@ Foram **5 ciclos principais** de geração → revisão → correção:
 ├── README.md                 ← este arquivo (processo)
 ├── ENUNCIADO.md              ← enunciado original do desafio
 ├── TRANSCRICAO.md            ← transcrição da reunião (intocada)
+├── fase-2/                 ← patch da demonstração Parte 2
 ├── docs/
 │   ├── PRD.md
 │   ├── RFC.md
 │   ├── FDD.md
 │   ├── TRACKER.md
-│   └── adrs/
+│   ├── adrs/
+│   └── site/               ← HTML + docs-meta.json (Parte 2)
+├── scripts/docs/           ← gerador e auto-atualização
 │       ├── ADR-001-outbox-no-mysql.md
 │       ├── ADR-002-worker-polling-processo-separado.md
 │       ├── ADR-003-retry-backoff-dlq.md
@@ -142,6 +146,110 @@ Foram **5 ciclos principais** de geração → revisão → correção:
 | Tracker — 164 linhas; 88% TRANSCRICAO; 19 linhas CODIGO | ✅ |
 | README — processo documentado | ✅ |
 | Consistência — paths citados existem no repo | ✅ |
+
+---
+
+## Demonstração da Parte 2
+
+Documentação viva: site HTML + `npm run docs:update` (diff + Tracker + IA/determinístico).
+
+### 1. Estado inicial
+
+`source_commit` gravado em `docs/site/docs-meta.json` **antes** da mudança de código:
+
+```
+6ea0a8e2719f5df6b51bab35a082f9f8ea744a47
+```
+
+(commit do tooling Parte 2, imediatamente antes do site HTML inicial)
+
+### 2. A mudança
+
+```bash
+git apply fase-2/order-status-change.patch
+git add -A
+git commit -m "feat: allow cancelling shipped orders"
+```
+
+Commit resultante:
+
+```
+af89c168ca473aa3e204f3f14f2717f98963508d
+```
+
+`git show --stat`:
+
+```
+ src/modules/orders/order.status.ts | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+```
+
+### 3. A execução
+
+```bash
+npm run docs:update
+```
+
+Saída (resumo):
+
+```
+1. Âncora (source_commit): 6ea0a8e...
+2. Arquivos alterados: ... src/modules/orders/order.status.ts
+3. Documentos afetados via Tracker (Fonte=CODIGO):
+   - docs/adrs/ADR-007-payload-snapshot-na-insercao.md
+   - docs/FDD.md
+4. Atualizando 3 documento(s)...
+   ✓ docs/FDD.md
+   ✓ docs/adrs/ADR-007-payload-snapshot-na-insercao.md
+   ✓ docs/TRACKER.md
+5. Regenerando HTML e re-ancorando...
+```
+
+### 4. O resultado
+
+**Novo `source_commit`:** `af89c168ca473aa3e204f3f14f2717f98963508d` (commit do patch)
+
+**Trechos atualizados (antes → depois):**
+
+FDD — integração com `order.status.ts`:
+
+```diff
+-| ... definem transições válidas; `subscribedStatuses` filtra ...
++| ... definem transições válidas (inclui **`SHIPPED → CANCELLED`** além de `SHIPPED → DELIVERED`); ... `shouldReplenishStock` repõe estoque ao cancelar de `SHIPPED`.
+```
+
+ADR-007 — contexto da máquina de estados:
+
+```diff
++ A máquina de estados em `order.status.ts` governa ... **`SHIPPED → DELIVERED`** e **`SHIPPED → CANCELLED`** ...
+```
+
+FDD — novo exemplo de payload `SHIPPED → CANCELLED` na seção de contratos.
+
+Tracker — nova linha `FDD-COD-01` com `Fonte = CODIGO` → `src/modules/orders/order.status.ts`.
+
+**Validação:** nenhum documento afirma que `SHIPPED` só transiciona para `DELIVERED`; FDD e ADR-007 mencionam explicitamente `SHIPPED → CANCELLED`.
+
+### Comandos da Parte 2
+
+| Comando | Função |
+| --- | --- |
+| `npm run docs:generate` | Gera `docs/site/` a partir dos Markdown |
+| `npm run docs:update` | Diff desde `source_commit`, Tracker → docs afetados → regenera HTML |
+
+Código do mecanismo: `scripts/docs/` (versionado no repositório).
+
+### Checklist Parte 2
+
+| Critério | Status |
+| --- | --- |
+| `docs/site/` HTML navegável (PRD, RFC, FDD, ADRs, Tracker) | ✅ |
+| Hash do commit visível no HTML | ✅ |
+| `docs/site/docs-meta.json` com `source_commit`, `generated_at`, `documents` | ✅ |
+| Mecanismo versionado (`npm run docs:update`) | ✅ |
+| Usa `git diff` + Tracker (não regeneração cega) | ✅ |
+| Demonstração com patch `fase-2/` documentada acima | ✅ |
+| Docs refletem `SHIPPED → CANCELLED` | ✅ |
 
 ---
 

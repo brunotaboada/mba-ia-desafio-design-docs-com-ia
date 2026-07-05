@@ -73,6 +73,7 @@ A feature adiciona notificação **outbound** desacoplada: registro transacional
 1. Cliente da API chama `PATCH /orders/:id/status` (fluxo existente).
 2. `OrderService.changeStatus` inicia transação Prisma.
 3. Valida transição (`order.status.ts`), estoque, atualiza pedido e histórico.
+   - Transições elegíveis incluem cancelamento pós-envio (**`SHIPPED → CANCELLED`**), com reposição de estoque via `shouldReplenishStock`.
 4. `publishWebhookEvent(tx, order, fromStatus, toStatus)`:
    - Busca webhooks ativos do `customer_id` que assinam `toStatus`.
    - Se nenhum assinante: retorna sem inserir.
@@ -349,6 +350,17 @@ Sem corpo.
 }
 ```
 
+Exemplo adicional — cancelamento após envio:
+
+```json
+{
+  "event_type": "order.status_changed",
+  "from_status": "SHIPPED",
+  "to_status": "CANCELLED",
+  "order_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
 Sem `items` no payload. Cliente consulta `GET /orders/:id` para detalhes complementares.
 
 ### Função interna: publishWebhookEvent
@@ -499,7 +511,7 @@ Classes em `src/modules/webhooks/webhook.errors.ts` estendendo `AppError` e erro
 | Arquivo | Integração |
 | --- | --- |
 | `src/modules/orders/order.service.ts` | Em `changeStatus`, após atualizar pedido e histórico, chamar `publishWebhookEvent(tx, order, from, to)` na mesma `$transaction`. Falha aborta a transação. |
-| `src/modules/orders/order.status.ts` | `OrderStatus` e `canTransition` definem transições válidas; `subscribedStatuses` filtra quais `toStatus` geram evento. |
+| `src/modules/orders/order.status.ts` | `OrderStatus` e `canTransition` definem transições válidas (inclui **`SHIPPED → CANCELLED`** além de `SHIPPED → DELIVERED`); `subscribedStatuses` filtra quais `toStatus` geram evento; `shouldReplenishStock` repõe estoque ao cancelar de `SHIPPED`. |
 | `src/shared/errors/app-error.ts` | Classes `Webhook*Error` estendem `AppError` com `errorCode` prefixado `WEBHOOK_`. |
 | `src/shared/errors/http-errors.ts` | Reutilizar padrão de `NotFoundError`, `ValidationError`, `ForbiddenError` como em `InsufficientStockError`. |
 | `src/middlewares/error.middleware.ts` | Sem alteração: serializa `AppError` em JSON padronizado. |
