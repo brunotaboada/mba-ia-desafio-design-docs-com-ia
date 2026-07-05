@@ -195,23 +195,23 @@ Foram **5 ciclos principais** de geração → revisão → correção:
 ├── README.md                 ← este arquivo (processo)
 ├── ENUNCIADO.md              ← enunciado original do desafio
 ├── TRANSCRICAO.md            ← transcrição da reunião (intocada)
-├── fase-2/                 ← patch da demonstração Parte 2
+├── fase-2/                   ← patch da demonstração Parte 2
 ├── docs/
 │   ├── PRD.md
 │   ├── RFC.md
 │   ├── FDD.md
 │   ├── TRACKER.md
 │   ├── adrs/
-│   └── site/               ← HTML + docs-meta.json (Parte 2)
-├── scripts/docs/           ← gerador e auto-atualização
-│       ├── ADR-001-outbox-no-mysql.md
-│       ├── ADR-002-worker-polling-processo-separado.md
-│       ├── ADR-003-retry-backoff-dlq.md
-│       ├── ADR-004-hmac-sha256-secret-por-endpoint.md
-│       ├── ADR-005-at-least-once-x-event-id.md
-│       ├── ADR-006-reuso-padroes-projeto.md
-│       └── ADR-007-payload-snapshot-na-insercao.md
-├── src/                      ← código de referência (não alterado)
+│   │   ├── ADR-001-outbox-no-mysql.md
+│   │   ├── ADR-002-worker-polling-processo-separado.md
+│   │   ├── ADR-003-retry-backoff-dlq.md
+│   │   ├── ADR-004-hmac-sha256-secret-por-endpoint.md
+│   │   ├── ADR-005-at-least-once-x-event-id.md
+│   │   ├── ADR-006-reuso-padroes-projeto.md
+│   │   └── ADR-007-payload-snapshot-na-insercao.md
+│   └── site/                 ← HTML + docs-meta.json (Parte 2)
+├── scripts/docs/             ← gerador e auto-atualização
+├── src/                      ← código de referência (patch fase-2 em order.status.ts)
 ├── prisma/
 └── tests/
 ```
@@ -334,4 +334,4 @@ Código do mecanismo: `scripts/docs/` (versionado no repositório).
 
 ---
 
-*Branch de entrega: `cursor/design-docs-webhooks-74ed`*
+*Entrega na branch `main`.*
