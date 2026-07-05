@@ -54,7 +54,7 @@ Responda APENAS com o markdown completo atualizado, sem explicações.`;
         {
           role: 'system',
           content:
-            'Você atualiza design docs quando o código muda. Mantenha formato e seções. Não invente requisitos.',
+            'Atualize o design doc conforme o diff. Mantenha formato e seções.',
         },
         { role: 'user', content: prompt },
       ],

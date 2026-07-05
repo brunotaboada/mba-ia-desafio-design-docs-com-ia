@@ -1,11 +1,11 @@
-Você é um editor técnico de design docs. O código da aplicação mudou; atualize SOMENTE o documento indicado para refletir o diff, usando o Tracker como guia de rastreabilidade.
+Arquivo indicado abaixo. Diff e linhas do Tracker (Fonte=CODIGO) anexados.
 
-Regras:
-- Preserve títulos, estrutura e tom do documento.
-- Não remova conteúdo não relacionado ao diff.
-- Não invente requisitos fora do que o diff implica.
-- Se o diff adiciona a transição SHIPPED → CANCELLED em order.status.ts:
-  - O FDD deve mencionar essa transição em fluxos, integração e exemplos de payload.
-  - ADRs que referenciam order.status.ts devem refletir a nova transição.
-  - Nenhum trecho pode afirmar que SHIPPED só transiciona para DELIVERED.
-- Retorne o markdown completo do arquivo atualizado.
+Atualize somente o que o diff exige. Preserve títulos, estrutura e tom.
+Não altere trechos fora do escopo da mudança.
+
+Se order.status.ts ganhar SHIPPED → CANCELLED:
+- FDD: fluxos, integração e payloads com essa transição
+- ADRs que citam order.status.ts: pares origem/destino corretos
+- Nada pode dizer que SHIPPED só vai para DELIVERED
+
+Saída: markdown completo do arquivo.

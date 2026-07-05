@@ -44,102 +44,118 @@ Interação com a IA: prompts **dirigidos** (com trechos da transcrição e path
 
 ## Prompts customizados
 
-Abaixo estão os prompts que mais impactaram a qualidade da entrega — adaptados a partir dos prompts do curso, mas com restrições explícitas deste repositório (transcrição, rubrica do `ENUNCIADO.md`, paths reais em `src/`). O segundo prompt genérico de “revisar contra rubrica” foi substituído por prompts **por artefato**, que é como o trabalho foi conduzido na prática.
+Prompts que usei no Cursor, um artefato por vez. Cada um recebe contexto concreto: trecho da transcrição, path de arquivo ou número do ADR.
 
-### 1. Contextualização inicial (mapa transcrição + código)
+### 1. Mapa transcrição + código
 
 ```
 Leia TRANSCRICAO.md e o código em src/modules/orders/, src/shared/errors/,
 src/middlewares/ e prisma/schema.prisma.
 
-Produza um mapa estruturado com:
-1) As 6 decisões principais da reunião (outbox, worker, retry/DLQ, HMAC, at-least-once, reuso de padrões)
+Monte um mapa com:
+1) As 6 decisões principais (outbox, worker, retry/DLQ, HMAC, at-least-once, reuso de padrões)
 2) Decisões secundárias (payload, headers, timeouts)
-3) Itens explicitamente FORA DE ESCOPO ou adiados (com timestamp e falante)
-4) Questões em aberto não decididas
-5) Para cada decisão: gancho no código existente (arquivo + método/classe)
+3) O que ficou fora de escopo ou foi adiado — com [hh:mm] e nome de quem falou
+4) Questões em aberto
+5) Para cada decisão: onde isso encaixa no código (arquivo + método/classe)
 
-Não invente requisitos. Se não houver origem na transcrição ou no código, marque como "sem fonte".
+Só entra no mapa o que tiver fonte na transcrição ou no repositório.
 ```
 
-### 2. ADR por decisão da reunião (com evidência e gancho no código)
+### 2. ADR por decisão da reunião
 
 ```
-Para a decisão "{nome da decisão}" discutida em TRANSCRICAO.md em [{hh:mm}] {falante},
-gere docs/adrs/ADR-{NNN}-{slug-kebab}.md com as seções da rubrica do ENUNCIADO:
-Status, Contexto, Decisão, Alternativas Consideradas, Consequências (### Positivas / ### Negativas).
+Decisão: {nome} — citada em [{hh:mm}] {falante} na TRANSCRICAO.md.
+Arquivo: docs/adrs/ADR-{NNN}-{slug-kebab}.md
+
+Seções: Status, Contexto, Decisão, Alternativas Consideradas,
+Consequências (### Positivas / ### Negativas).
+
+- Contexto: problema de negócio + restrição do time, com o timestamp
+- Alternativas: no máximo 3; pelo menos 1 veio da reunião
+- Decisão: um parágrafo; sem código nem contratos HTTP (isso vai no FDD)
+- Consequências: trade-off explícito
+- Referenciar pelo menos um arquivo do repo (ex.: changeStatus em order.service.ts,
+  AppError, requireRole)
+- Títulos em português (Contexto, Decisão — não Context / Decision)
+
+Cobrir as 6 decisões principais + snapshot de payload (ADR-007).
+```
+
+### 3. Links entre ADRs (`adr-linker`)
+
+```
+Leia docs/adrs/ADR-*.md e adicione no cabeçalho de cada arquivo:
+
+- **Depends on:** ADRs dos quais este depende (menção explícita no texto)
+- **Used by:** ADRs que dependem deste (bidirecional)
+- **Related to:** decisões do mesmo fluxo, sem dependência direta
 
 Regras:
-- Contexto: problema de negócio + restrição operacional do time, citando o timestamp exato
-- Alternativas: máximo 3; pelo menos 1 deve ter sido mencionada ou descartada na reunião
-- Decisão: 1 parágrafo objetivo, sem código nem contratos HTTP (isso fica no FDD)
-- Consequências: trade-off explícito (o que ganhamos vs o que aceitamos perder)
-- Referenciar ≥1 arquivo real do repositório (ex: changeStatus em order.service.ts,
-  AppError em shared/errors, requireRole em auth.middleware)
-- Títulos das seções em português, literais da rubrica — não usar "## Context" / "## Decision"
+- Link só com evidência no Contexto ou na Decisão (ex.: "outbox adotado (ADR-001)")
+- Máximo 3 Depends on e 3 Related to por ADR
+- Caminho relativo: ./ADR-NNN-slug.md
+- Salvar relatório em docs/adrs/reports/adr-link-report-{data}.md
+  (pares encontrados, links quebrados, dependências circulares)
 
-Ao finalizar os 7 ADRs, cobrir as 6 decisões principais + snapshot de payload (ADR-007).
+Relações que devem aparecer:
+- ADR-002 Depends on ADR-001; ADR-003 Depends on ADR-002
+- ADR-007 Depends on ADR-001
+- ADR-003 ↔ ADR-005 (retry/DLQ e at-least-once)
+- ADR-004 ↔ ADR-005 (HMAC e X-Event-Id)
+- ADR-002 ↔ ADR-006 (worker e padrões do projeto)
 ```
 
-### 3. FDD acionável a partir dos ADRs e do código base
+### 4. FDD a partir dos ADRs
 
 ```
-Com base nos ADRs 001–007, no RFC e no mapa de contextualização, produza docs/FDD.md.
+Com os ADRs 001–007, o RFC e o mapa de contextualização, escreva docs/FDD.md.
 
-Inclua obrigatoriamente:
-- Contratos HTTP: CRUD de webhooks, histórico de entregas, replay de DLQ e DELETE /api/webhooks/:id
-  (cada um com auth, request/response JSON de exemplo e status codes)
-- Fluxo outbox: changeStatus → publishWebhookEvent(tx) na mesma $transaction → worker poll → POST com HMAC
-- Matriz de erros com prefixo WEBHOOK_ (mapear para AppError / http-errors existentes)
-- Estratégias de resiliência: retry com backoff, DLQ, replay ADMIN, rotação de secret (grace 24h)
-- Seção "Integração com o sistema existente": caminhos reais em src/ e prisma/ que existem hoje;
-  marque src/modules/webhooks/, webhook.errors.ts e src/worker.ts como "(a criar na implementação)"
-- Observabilidade: métricas (latência p95, taxa de sucesso, backlog outbox/DLQ), logs Pino, tracing
+Obrigatório:
+- Contratos HTTP: CRUD de webhooks, histórico, replay DLQ, DELETE /api/webhooks/:id
+  (auth, request/response JSON, status codes)
+- Fluxo: changeStatus → publishWebhookEvent(tx) na mesma $transaction → worker → POST com HMAC
+- Matriz WEBHOOK_* alinhada a AppError / http-errors
+- Resiliência: backoff, DLQ, replay ADMIN, rotação de secret (grace 24h)
+- Integração: paths reais em src/ e prisma/;
+  src/modules/webhooks/, webhook.errors.ts e src/worker.ts → "(a criar na implementação)"
+- Observabilidade: latência p95, taxa de sucesso, backlog outbox/DLQ, logs Pino, tracing
 
-Não inclua seções meta (notas ao avaliador, discrepâncias curso vs rubrica).
-Não repita o nível de detalhe do RFC. Toda afirmação deve apontar para ADR, transcrição ou arquivo real.
+Nível de implementação, não de arquitetura. Cada afirmação com ADR, transcrição ou arquivo.
 ```
 
-### 4. Tracker incremental (rastreabilidade por documento)
+### 5. Linhas no Tracker
 
 ```
-Para cada item novo em {docs/PRD.md | docs/RFC.md | docs/FDD.md | docs/adrs/ADR-NNN-*.md},
-adicione linhas em docs/TRACKER.md no formato:
+Para cada item novo em {PRD | RFC | FDD | ADR-NNN}, adicione uma linha em docs/TRACKER.md:
 
 | ID | Documento | Tipo | Conteúdo (resumo) | Fonte | Localização |
 
-Regras:
-- IDs únicos: PRD-FR-01, RFC-ALT-02, FDD-CON-03, ADR-003-DEC-01, FDD-ERR-05, etc.
-- Fonte TRANSCRICAO → localização = [hh:mm] Nome (buscar na TRANSCRICAO.md, não inventar)
-- Fonte CODIGO → localização = caminho exato (ex: src/modules/orders/order.service.ts)
-- Uma linha por requisito, decisão, alternativa descartada, endpoint, erro WEBHOOK_* e ponto de integração
-- Itens sem origem verificável: corrigir o documento ou não registrar no Tracker
-
-Meta: ≥80% dos itens dos docs com linha correspondente; ao final, 165 linhas e 20 com Fonte=CODIGO.
+- IDs: PRD-FR-01, RFC-ALT-02, FDD-CON-03, ADR-003-DEC-01, FDD-ERR-05
+- TRANSCRICAO → [hh:mm] Nome (conferir em TRANSCRICAO.md)
+- CODIGO → caminho completo (ex.: src/modules/orders/order.service.ts)
+- Uma linha por requisito, decisão, endpoint, erro WEBHOOK_* e ponto de integração
+- Sem linha se não houver fonte verificável
 ```
 
-### 5. Atualização dirigida por diff (Parte 2 — versionado em `scripts/docs/prompts/update-doc.txt`)
+### 6. Atualização por diff (Parte 2)
 
-Prompt usado pelo `npm run docs:update` quando há `OPENAI_API_KEY`; sem chave, o mesmo contrato
-é honrado pelo atualizador determinístico em `scripts/docs/lib/ai-update.ts`.
+Prompt base em `scripts/docs/prompts/update-doc.txt`, usado pelo `npm run docs:update`.
+O script anexa o diff, linhas do Tracker com `Fonte=CODIGO` e o markdown atual do arquivo.
 
 ```
-Você é um editor técnico de design docs. O código da aplicação mudou; atualize SOMENTE o documento
-indicado para refletir o diff, usando o Tracker como guia de rastreabilidade.
+Arquivo: {docPath}
+Diff e Tracker anexados abaixo.
 
-Regras:
-- Preserve títulos, estrutura e tom do documento.
-- Não remova conteúdo não relacionado ao diff.
-- Não invente requisitos fora do que o diff implica.
-- Se o diff adiciona a transição SHIPPED → CANCELLED em order.status.ts:
-  - O FDD deve mencionar essa transição em fluxos, integração e exemplos de payload.
-  - ADRs que referenciam order.status.ts devem refletir a nova transição.
-  - Nenhum trecho pode afirmar que SHIPPED só transiciona para DELIVERED.
-- Retorne o markdown completo do arquivo atualizado.
+Atualize somente o que o diff exige. Preserve títulos, estrutura e tom.
+
+Se order.status.ts ganhar SHIPPED → CANCELLED:
+- FDD: fluxos, integração e payloads com essa transição
+- ADRs que citam order.status.ts: pares origem/destino corretos
+- Nada pode dizer que SHIPPED só vai para DELIVERED
+
+Saída: markdown completo do arquivo.
 ```
-
-O prompt completo enviado à API também inclui o `git diff`, trechos do Tracker com `Fonte=CODIGO`
-e o markdown atual do arquivo — ver `scripts/docs/lib/ai-update.ts`.
 
 ---
 
