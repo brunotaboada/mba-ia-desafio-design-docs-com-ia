@@ -58,3 +58,35 @@ Mapeamento de itens documentados à origem na transcrição (`TRANSCRICAO.md`) o
 | ADR-007-DEC-04 | docs/adrs/ADR-007-payload-snapshot-na-insercao.md | Decisão | Payload enxuto sem itens de linha do pedido | TRANSCRICAO | [09:43] Diego |
 | ADR-007-ALT-01 | docs/adrs/ADR-007-payload-snapshot-na-insercao.md | Trade-off | Renderização lazy no envio rejeitada | TRANSCRICAO | [09:52] Bruno |
 | ADR-007-COD-01 | docs/adrs/ADR-007-payload-snapshot-na-insercao.md | Decisão | Transições de status definem eventos elegíveis | CODIGO | src/modules/orders/order.status.ts |
+| RFC-META-01 | docs/RFC.md | Decisão | Revisores: Larissa, Marcos, Bruno, Diego, Sofia | TRANSCRICAO | [09:00] Larissa |
+| RFC-TLDR-01 | docs/RFC.md | Decisão | Proposta: outbox MySQL + worker + HMAC + at-least-once | TRANSCRICAO | [09:48] Larissa |
+| RFC-CTX-01 | docs/RFC.md | Decisão | Três clientes B2B exigem notificação de mudança de status | TRANSCRICAO | [09:00] Marcos |
+| RFC-CTX-02 | docs/RFC.md | Restrição | SLA tempo real = abaixo de 10 segundos | TRANSCRICAO | [09:02] Marcos |
+| RFC-CTX-03 | docs/RFC.md | Restrição | Apenas webhooks outbound (não inbound) | TRANSCRICAO | [09:02] Sofia |
+| RFC-CTX-04 | docs/RFC.md | Decisão | OMS sem mecanismo de notificação externa hoje | CODIGO | src/modules/orders/order.service.ts |
+| RFC-PROP-01 | docs/RFC.md | Decisão | Publicação transacional na mudança de status | TRANSCRICAO | [09:40] Bruno |
+| RFC-PROP-02 | docs/RFC.md | Decisão | Worker separado com polling 2s | TRANSCRICAO | [09:09] Diego |
+| RFC-PROP-03 | docs/RFC.md | Decisão | Retry 5x com backoff e DLQ | TRANSCRICAO | [09:17] Larissa |
+| RFC-PROP-04 | docs/RFC.md | Decisão | HMAC-SHA256, secret por endpoint, TLS obrigatório | TRANSCRICAO | [09:22] Sofia |
+| RFC-PROP-05 | docs/RFC.md | Decisão | At-least-once com X-Event-Id | TRANSCRICAO | [09:26] Larissa |
+| RFC-PROP-06 | docs/RFC.md | Decisão | Módulo webhooks reutilizando padrões do OMS | TRANSCRICAO | [09:30] Larissa |
+| RFC-PROP-07 | docs/RFC.md | Decisão | CRUD autenticado; replay DLQ exige ADMIN | TRANSCRICAO | [09:36] Sofia |
+| RFC-OUT-01 | docs/RFC.md | Restrição | Email de alerta ao cliente fora do escopo | TRANSCRICAO | [09:37] Larissa |
+| RFC-OUT-02 | docs/RFC.md | Restrição | Dashboard visual fora do escopo | TRANSCRICAO | [09:40] Larissa |
+| RFC-OUT-03 | docs/RFC.md | Restrição | Arquivamento outbox 30 dias fora do escopo | TRANSCRICAO | [09:08] Diego |
+| RFC-ALT-01 | docs/RFC.md | Trade-off | Disparo síncrono descartado — bloqueia transação | TRANSCRICAO | [09:04] Bruno |
+| RFC-ALT-02 | docs/RFC.md | Trade-off | Redis Streams descartado — overengineering | TRANSCRICAO | [09:07] Diego |
+| RFC-ALT-03 | docs/RFC.md | Trade-off | Trigger MySQL descartado — sem listener nativo | TRANSCRICAO | [09:09] Diego |
+| RFC-ALT-04 | docs/RFC.md | Trade-off | Worker na API descartado — reinício interrompe entrega | TRANSCRICAO | [09:11] Diego |
+| RFC-OPEN-01 | docs/RFC.md | Decisão | Rate limiting de saída — observar e decidir depois | TRANSCRICAO | [09:39] Larissa |
+| RFC-OPEN-02 | docs/RFC.md | Decisão | Multi-worker e ordering global — problema futuro | TRANSCRICAO | [09:13] Diego |
+| RFC-OPEN-03 | docs/RFC.md | Decisão | Endurecer roles no CRUD — fase futura | TRANSCRICAO | [09:37] Sofia |
+| RFC-IMP-01 | docs/RFC.md | Decisão | changeStatus como ponto de acoplamento com outbox | TRANSCRICAO | [09:40] Bruno |
+| RFC-IMP-02 | docs/RFC.md | Decisão | Novo processo worker além da API | TRANSCRICAO | [09:11] Larissa |
+| RFC-RISK-01 | docs/RFC.md | Risco | Cliente sem deduplicação — prob. média, impacto alto | TRANSCRICAO | [09:25] Sofia |
+| RFC-RISK-02 | docs/RFC.md | Risco | Cliente offline >15h — evento na DLQ | TRANSCRICAO | [09:17] Marcos |
+| RFC-RISK-03 | docs/RFC.md | Risco | Crescimento da outbox — índices e arquivamento futuro | TRANSCRICAO | [09:08] Diego |
+| RFC-RISK-04 | docs/RFC.md | Risco | Vazamento de secret — rotação e TLS | TRANSCRICAO | [09:22] Diego |
+| RFC-RISK-05 | docs/RFC.md | Risco | Atraso revisão segurança — 2 dias úteis Sofia | TRANSCRICAO | [09:46] Sofia |
+| RFC-ADR-01 | docs/RFC.md | Decisão | Link para ADR-001 Outbox MySQL | TRANSCRICAO | [09:08] Larissa |
+| RFC-ADR-02 | docs/RFC.md | Decisão | Link para ADR-002 Worker polling | TRANSCRICAO | [09:10] Larissa |
