@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ADR-002-worker-polling-processo-separado — Webhooks OMS</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="commit-banner">
+      <strong>source_commit:</strong>
+      <code id="source-commit">af89c168ca473aa3e204f3f14f2717f98963508d</code>
+      <span class="generated-at">gerado em 2026-07-05T13:54:50.580Z</span>
+    </div>
+    <h1>Sistema de Webhooks — Design Docs</h1>
+  </header>
+  <div class="layout">
+    <nav class="sidebar">
+      <ul><li><a href="index.html">Início</a></li>
+<li data-group="ADRs"><a href="adrs/adr-001-outbox-no-mysql.html">ADR-001-OUTBOX-NO-MYSQL</a></li>
+<li data-group="ADRs"><a href="adrs/adr-002-worker-polling-processo-separado.html">ADR-002-WORKER-POLLING-PROCESSO-SEPARADO</a></li>
+<li data-group="ADRs"><a href="adrs/adr-003-retry-backoff-dlq.html">ADR-003-RETRY-BACKOFF-DLQ</a></li>
+<li data-group="ADRs"><a href="adrs/adr-004-hmac-sha256-secret-por-endpoint.html">ADR-004-HMAC-SHA256-SECRET-POR-ENDPOINT</a></li>
+<li data-group="ADRs"><a href="adrs/adr-005-at-least-once-x-event-id.html">ADR-005-AT-LEAST-ONCE-X-EVENT-ID</a></li>
+<li data-group="ADRs"><a href="adrs/adr-006-reuso-padroes-projeto.html">ADR-006-REUSO-PADROES-PROJETO</a></li>
+<li data-group="ADRs"><a href="adrs/adr-007-payload-snapshot-na-insercao.html">ADR-007-PAYLOAD-SNAPSHOT-NA-INSERCAO</a></li>
+<li data-group="Documentos"><a href="fdd.html">FDD</a></li>
+<li data-group="Documentos"><a href="prd.html">PRD</a></li>
+<li data-group="Documentos"><a href="rfc.html">RFC</a></li>
+<li data-group="Documentos"><a href="tracker.html">Tracker</a></li></ul>
+    </nav>
+    <main class="content prose">
+      <h1>ADR-002: Worker em Processo Separado com Polling</h1>
+<p><strong>Status:</strong> Aceito<br><strong>Date:</strong> 07-11-2025<br><strong>Depends on:</strong> <a href="./ADR-001-outbox-no-mysql.md">ADR-001: Padrão Outbox no MySQL</a><br><strong>Used by:</strong> <a href="./ADR-003-retry-backoff-dlq.md">ADR-003: Política de Retry com Backoff Exponencial e DLQ</a><br><strong>Related to:</strong> <a href="./ADR-006-reuso-padroes-projeto.md">ADR-006: Reuso dos Padrões Existentes do Projeto</a></p>
+<h2>Contexto</h2>
+<p>Com o padrão outbox adotado (ADR-001), eventos de notificação ficam persistidos no MySQL aguardando entrega HTTP aos endpoints cadastrados pelos clientes. É necessário definir como esses eventos serão consumidos e transformados em chamadas outbound.</p>
+<p>O requisito de negócio aceita latência abaixo de dez segundos como equivalente a tempo real. A API principal já possui entry-point dedicado com bootstrap, logging estruturado e encerramento gracioso; o mecanismo de entrega deve coexistir sem comprometer disponibilidade da API durante deploys ou reinícios.</p>
+<p>MySQL não oferece notificação nativa a processos externos comparável a mecanismos de outros bancos relacionais, o que limita abordagens reativas baseadas apenas no banco.</p>
+<h2>Fatores de Decisão</h2>
+<ul>
+<li>SLA de entrega abaixo de dez segundos para clientes B2B.</li>
+<li>Resiliência a reinícios da API sem interrupção das entregas.</li>
+<li>Simplicidade operacional para time pequeno.</li>
+<li>Limitações do MySQL para sinalização a processos externos.</li>
+<li>Throughput inicial compatível com worker único.</li>
+</ul>
+<h2>Alternativas Consideradas</h2>
+<ol>
+<li><strong>Processo worker separado com polling periódico (intervalo de dois segundos)</strong> — leitura de eventos pendentes em lotes pequenos, processamento e atualização de status.</li>
+<li><strong>Trigger de banco para notificar o worker</strong> — reação imediata a novas linhas na store de eventos.</li>
+<li><strong>Worker embutido no mesmo processo da API</strong> — consumo inline durante o runtime da aplicação.</li>
+</ol>
+<h2>Decisão</h2>
+<p><strong>Opção escolhida:</strong> Processo worker separado com polling a cada dois segundos, porque atende o SLA com margem, evita gambiarras de sinalização no MySQL e isola entregas de reinícios da API.</p>
+<p>O worker roda como processo Node.js independente, com conexão ao mesmo banco via instância de cliente ORM separada. Na fase inicial opera em configuração single-worker, preservando ordenação implícita por pedido enquanto eventos são processados por ordem de criação. Chamadas HTTP outbound têm timeout de dez segundos; falhas acionam política de retry (ADR-003).</p>
+<h2>Prós e Contras das Opções</h2>
+<h3>Processo worker separado com polling</h3>
+<ul>
+<li><strong>Prós:</strong> Latência previsível (~dois segundos no pior caso antes do processamento); simplicidade operacional; resiliência a deploys da API; sem broker externo.</li>
+<li><strong>Contras:</strong> Latência mínima mesmo com fila vazia; leituras periódicas no banco; single-worker limita throughput e ordenação global entre pedidos distintos.</li>
+</ul>
+<h3>Trigger de banco para notificar o worker</h3>
+<ul>
+<li><strong>Prós:</strong> Potencialmente mais reativo que polling fixo.</li>
+<li><strong>Contras:</strong> MySQL executa apenas SQL dentro do trigger; avisar processo externo exigiria soluções frágeis; complexidade sem ganho proporcional dado o SLA.</li>
+</ul>
+<h3>Worker embutido no mesmo processo da API</h3>
+<ul>
+<li><strong>Prós:</strong> Menos processos para operar; deploy único.</li>
+<li><strong>Contras:</strong> Reinício da API interrompe entregas; competição por recursos com requisições HTTP; acoplamento indesejado entre API e entrega.</li>
+</ul>
+<h2>Consequências</h2>
+<h3>Positivas</h3>
+<ul>
+<li>Atende o SLA de entrega abaixo de dez segundos com margem previsível.</li>
+<li>Reinícios e deploys da API não interrompem as entregas de webhooks.</li>
+<li>Simplicidade operacional: um processo adicional, sem broker externo.</li>
+<li>Resiliência a indisponibilidade temporária da API.</li>
+</ul>
+<h3>Negativas</h3>
+<ul>
+<li>Operação passa a incluir processo adicional com script e monitoramento próprios.</li>
+<li>Latência mínima de ~dois segundos mesmo com fila vazia.</li>
+<li>Single-worker limita throughput e não garante ordenação global entre pedidos distintos.</li>
+<li>Polling contínuo gera leituras periódicas no MySQL (mitigável com índices adequados).</li>
+<li>Escalar para múltiplos workers permanece explicitamente adiado.</li>
+</ul>
+<h2>Referências</h2>
+<ul>
+<li>src/server.ts:1</li>
+<li>src/modules/orders/order.service.ts:126</li>
+<li>prisma/schema.prisma:1</li>
+</ul>
+
+    </main>
+  </div>
+</body>
+</html>

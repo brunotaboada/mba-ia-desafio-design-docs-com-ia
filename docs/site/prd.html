@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PRD — Webhooks OMS</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="commit-banner">
+      <strong>source_commit:</strong>
+      <code id="source-commit">af89c168ca473aa3e204f3f14f2717f98963508d</code>
+      <span class="generated-at">gerado em 2026-07-05T13:54:50.580Z</span>
+    </div>
+    <h1>Sistema de Webhooks — Design Docs</h1>
+  </header>
+  <div class="layout">
+    <nav class="sidebar">
+      <ul><li><a href="index.html">Início</a></li>
+<li data-group="ADRs"><a href="adrs/adr-001-outbox-no-mysql.html">ADR-001-OUTBOX-NO-MYSQL</a></li>
+<li data-group="ADRs"><a href="adrs/adr-002-worker-polling-processo-separado.html">ADR-002-WORKER-POLLING-PROCESSO-SEPARADO</a></li>
+<li data-group="ADRs"><a href="adrs/adr-003-retry-backoff-dlq.html">ADR-003-RETRY-BACKOFF-DLQ</a></li>
+<li data-group="ADRs"><a href="adrs/adr-004-hmac-sha256-secret-por-endpoint.html">ADR-004-HMAC-SHA256-SECRET-POR-ENDPOINT</a></li>
+<li data-group="ADRs"><a href="adrs/adr-005-at-least-once-x-event-id.html">ADR-005-AT-LEAST-ONCE-X-EVENT-ID</a></li>
+<li data-group="ADRs"><a href="adrs/adr-006-reuso-padroes-projeto.html">ADR-006-REUSO-PADROES-PROJETO</a></li>
+<li data-group="ADRs"><a href="adrs/adr-007-payload-snapshot-na-insercao.html">ADR-007-PAYLOAD-SNAPSHOT-NA-INSERCAO</a></li>
+<li data-group="Documentos"><a href="fdd.html">FDD</a></li>
+<li data-group="Documentos"><a href="prd.html">PRD</a></li>
+<li data-group="Documentos"><a href="rfc.html">RFC</a></li>
+<li data-group="Documentos"><a href="tracker.html">Tracker</a></li></ul>
+    </nav>
+    <main class="content prose">
+      <h1>PRD — Sistema de Webhooks de Notificação de Pedidos</h1>
+<p>Versão: 1.0<br>Data: 07-11-2025<br>Responsável: Marcos (Product Manager)</p>
+<p>Referências técnicas: <a href="./RFC.md">RFC</a> · <a href="./FDD.md">FDD</a> · <a href="./adrs/">ADRs</a></p>
+<hr>
+<h2>Resumo e contexto da feature</h2>
+<p>O OMS atende clientes B2B que precisam reagir rapidamente a mudanças no status de pedidos. Hoje a integração depende de polling frequente em <code>GET /orders</code>, o que é lento, caro e frágil. Três clientes (Atlas Comercial, MaxDistribuição e Nova Cargo) formalizaram a necessidade; a Atlas condiciona permanência na plataforma à entrega da feature até o fim do trimestre.</p>
+<p>Esta feature introduz <strong>webhooks outbound</strong>: a plataforma notifica automaticamente o sistema do cliente sempre que o status de um pedido muda, eliminando a necessidade de consultas periódicas.</p>
+<hr>
+<h2>Problema e motivação</h2>
+<table>
+<thead>
+<tr>
+<th>Problema</th>
+<th>Impacto</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Polling manual de pedidos</td>
+<td>Integração lenta e cara para o cliente</td>
+</tr>
+<tr>
+<td>Ausência de notificação push</td>
+<td>Atraso na reação operacional do cliente B2B</td>
+</tr>
+<tr>
+<td>Risco comercial</td>
+<td>Atlas sinalizou migração para concorrente sem a feature</td>
+</tr>
+</tbody></table>
+<p>A motivação é reduzir atrito na integração B2B, reter clientes estratégicos e habilitar automação em tempo quasi-real no ecossistema do OMS.</p>
+<hr>
+<h2>Público-alvo e cenários de uso</h2>
+<p><strong>Público-alvo</strong></p>
+<ul>
+<li><strong>Clientes B2B integradores</strong> (Atlas, MaxDistribuição, Nova Cargo e futuros): recebem eventos e atualizam ERP/WMS.</li>
+<li><strong>Usuários operadores do OMS</strong>: configuram webhooks via API autenticada em nome de um <code>customer_id</code>.</li>
+<li><strong>Operadores ADMIN</strong>: reprocessam eventos em dead letter quando necessário.</li>
+<li><strong>Time de engenharia</strong>: implementa e opera o sistema (detalhes no <a href="./FDD.md">FDD</a>).</li>
+</ul>
+<p><strong>Cenários de uso</strong></p>
+<ol>
+<li><strong>Integrador cadastra webhook</strong> — informa URL HTTPS e status desejados (ex.: <code>SHIPPED</code>, <code>DELIVERED</code>); recebe secret para validar assinaturas.</li>
+<li><strong>Pedido muda de status</strong> — cliente recebe POST automático com payload JSON; atualiza sistema sem polling.</li>
+<li><strong>Falha temporária no endpoint do cliente</strong> — plataforma retenta com backoff; cliente recupera sem perder evento (até limite de tentativas).</li>
+<li><strong>Suporte consulta entregas</strong> — integrador verifica últimas 100 tentativas (sucesso/falha, tempo de resposta).</li>
+<li><strong>Rotação de secret comprometida</strong> — cliente rotaciona secret com 24h de convivência entre antiga e nova.</li>
+<li><strong>Evento em dead letter</strong> — ADMIN da plataforma faz replay manual após cliente corrigir endpoint.</li>
+</ol>
+<hr>
+<h2>Objetivos e métricas de sucesso</h2>
+<table>
+<thead>
+<tr>
+<th>Objetivo</th>
+<th>Métrica</th>
+<th>Meta</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Reduzir dependência de polling</td>
+<td>% de clientes B2B ativos usando webhooks</td>
+<td>3 clientes piloto no go-live (Atlas, MaxDistribuição, Nova Cargo)</td>
+</tr>
+<tr>
+<td>Entrega em tempo quasi-real</td>
+<td>Latência entre mudança de status e tentativa de entrega</td>
+<td><strong>&lt; 10 segundos</strong> no p95 (definição de &quot;tempo real&quot; acordada com clientes)</td>
+</tr>
+<tr>
+<td>Confiabilidade de entrega</td>
+<td>Taxa de eventos entregues com sucesso (após retries)</td>
+<td>≥ 99% em janela de 30 dias (excluindo endpoints permanentemente offline)</td>
+</tr>
+<tr>
+<td>Adoção da API de configuração</td>
+<td>Webhooks cadastrados e ativos por cliente piloto</td>
+<td>≥ 1 endpoint ativo por cliente no go-live</td>
+</tr>
+<tr>
+<td>Prazo de entrega</td>
+<td>Feature em produção</td>
+<td>Fim de novembro (3 sprints estimados)</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Escopo</h2>
+<h3>Incluído</h3>
+<ul>
+<li>Notificação <strong>outbound</strong> em toda mudança de status de pedido elegível.</li>
+<li>API autenticada para CRUD de configuração de webhooks por <code>customer_id</code>.</li>
+<li>Filtro de eventos por lista de status subscritos por endpoint.</li>
+<li>Histórico das últimas 100 entregas por webhook.</li>
+<li>Retry automático com backoff e dead letter queue.</li>
+<li>Replay manual de dead letter (role ADMIN).</li>
+<li>Assinatura HMAC-SHA256, secret por endpoint, rotação com grace de 24h.</li>
+<li>Semântica at-least-once com <code>X-Event-Id</code> para deduplicação no cliente.</li>
+<li>Documentação de integração no portal do desenvolvedor.</li>
+</ul>
+<h3>Fora de escopo</h3>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Motivo</th>
+<th>Fonte na reunião</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Email de alerta</strong> ao cliente quando webhook falha repetidamente</td>
+<td>Adiado para fase futura; medir impacto antes</td>
+<td>Larissa descartou na v1</td>
+</tr>
+<tr>
+<td><strong>Dashboard visual / painel frontend</strong> para o cliente</td>
+<td>Projeto separado do time de frontend; v1 é só API</td>
+<td>Larissa: &quot;Só endpoints&quot;</td>
+</tr>
+<tr>
+<td><strong>Webhooks inbound</strong> (cliente notifica a plataforma)</td>
+<td>Escopo é apenas saída da plataforma para o cliente</td>
+<td>Sofia confirmou outbound only</td>
+</tr>
+<tr>
+<td><strong>Arquivamento automático</strong> de eventos entregues após 30 dias</td>
+<td>Explicitamente fora desta feature</td>
+<td>Diego</td>
+</tr>
+<tr>
+<td><strong>Rate limiting de saída</strong> por cliente</td>
+<td>Não decidido; observar em produção</td>
+<td>Diego/Larissa: ponto em aberto</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Requisitos funcionais</h2>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Requisito</th>
+<th>Prioridade</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>FR-01</strong></td>
+<td>O sistema deve permitir <strong>cadastrar webhook</strong> (<code>POST</code>) com URL HTTPS, lista de status subscritos e <code>customer_id</code>; a <strong>secret é gerada pela plataforma</strong> e devolvida na criação.</td>
+<td>Must</td>
+</tr>
+<tr>
+<td><strong>FR-02</strong></td>
+<td>O sistema deve permitir <strong>listar webhooks</strong> de um customer (<code>GET</code>).</td>
+<td>Must</td>
+</tr>
+<tr>
+<td><strong>FR-03</strong></td>
+<td>O sistema deve permitir <strong>editar webhook</strong> (<code>PATCH</code>): URL, status subscritos e estado ativo.</td>
+<td>Must</td>
+</tr>
+<tr>
+<td><strong>FR-04</strong></td>
+<td>O sistema deve permitir <strong>remover webhook</strong> (<code>DELETE</code>).</td>
+<td>Must</td>
+</tr>
+<tr>
+<td><strong>FR-05</strong></td>
+<td>O sistema deve <strong>disparar notificação outbound</strong> automaticamente quando o status de um pedido muda, para todos os webhooks ativos do customer que assinam o novo status.</td>
+<td>Must</td>
+</tr>
+<tr>
+<td><strong>FR-06</strong></td>
+<td>O sistema deve <strong>filtrar na inserção do evento</strong>: se nenhum webhook do customer assina o status destino, nenhum evento é registrado.</td>
+<td>Must</td>
+</tr>
+<tr>
+<td><strong>FR-07</strong></td>
+<td>O sistema deve expor <strong>histórico de entregas</strong> (<code>GET /webhooks/:id/deliveries</code>) com os últimos <strong>100</strong> registros (sucesso/falha, payload, response, tempo).</td>
+<td>Must</td>
+</tr>
+<tr>
+<td><strong>FR-08</strong></td>
+<td>O sistema deve permitir <strong>rotação de secret</strong> com a secret anterior válida por <strong>24 horas</strong> em paralelo.</td>
+<td>Must</td>
+</tr>
+<tr>
+<td><strong>FR-09</strong></td>
+<td>O sistema deve permitir <strong>replay manual</strong> de evento em dead letter (<code>POST /admin/webhooks/dead-letter/:id/replay</code>), restrito a usuários com role <strong>ADMIN</strong>, com registro de auditoria.</td>
+<td>Must</td>
+</tr>
+<tr>
+<td><strong>FR-10</strong></td>
+<td>O payload de notificação deve incluir identificador de evento, tipo <code>order.status_changed</code>, status origem/destino, dados básicos do pedido, <strong>sem itens de linha</strong> (cliente consulta pedido completo se necessário).</td>
+<td>Must</td>
+</tr>
+</tbody></table>
+<p>Detalhes de contratos HTTP no <a href="./FDD.md">FDD</a>.</p>
+<hr>
+<h2>Requisitos não funcionais</h2>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Requisito</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>NFR-01</strong></td>
+<td>Latência de entrega percebida como tempo real: <strong>abaixo de 10 segundos</strong> entre commit do status e tentativa de entrega.</td>
+</tr>
+<tr>
+<td><strong>NFR-02</strong></td>
+<td>Apenas URLs <strong>HTTPS</strong> aceitas no cadastro de webhook.</td>
+</tr>
+<tr>
+<td><strong>NFR-03</strong></td>
+<td>Assinatura <strong>HMAC-SHA256</strong> em todas as entregas; secret única por endpoint.</td>
+</tr>
+<tr>
+<td><strong>NFR-04</strong></td>
+<td>Semântica <strong>at-least-once</strong>; cliente deduplica por <code>X-Event-Id</code>.</td>
+</tr>
+<tr>
+<td><strong>NFR-05</strong></td>
+<td>Payload de evento limitado a <strong>64KB</strong>; rejeitar sem truncar se exceder.</td>
+</tr>
+<tr>
+<td><strong>NFR-06</strong></td>
+<td>Até <strong>5 tentativas</strong> de entrega com backoff (1m, 5m, 30m, 2h, 12h) antes de dead letter.</td>
+</tr>
+<tr>
+<td><strong>NFR-07</strong></td>
+<td>Timeout de <strong>10 segundos</strong> por chamada HTTP ao endpoint do cliente.</td>
+</tr>
+<tr>
+<td><strong>NFR-08</strong></td>
+<td>Consistência: mudança de status e registro de evento na <strong>mesma transação</strong> de banco.</td>
+</tr>
+<tr>
+<td><strong>NFR-09</strong></td>
+<td>CRUD de webhooks acessível a qualquer usuário autenticado; replay DLQ apenas ADMIN.</td>
+</tr>
+<tr>
+<td><strong>NFR-10</strong></td>
+<td>Códigos de erro da feature com prefixo <code>WEBHOOK_</code> (padrão do projeto).</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Decisões e trade-offs principais</h2>
+<table>
+<thead>
+<tr>
+<th>Decisão</th>
+<th>Trade-off aceito</th>
+<th>Referência</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Outbox transacional no MySQL</td>
+<td>Latência mínima ~2s vs. disparo síncrono</td>
+<td><a href="./adrs/ADR-001-outbox-no-mysql.md">ADR-001</a></td>
+</tr>
+<tr>
+<td>Worker separado com polling</td>
+<td>Processo operacional extra vs. resiliência a deploys</td>
+<td><a href="./adrs/ADR-002-worker-polling-processo-separado.md">ADR-002</a></td>
+</tr>
+<tr>
+<td>At-least-once (não exactly-once)</td>
+<td>Cliente deve deduplicar vs. complexidade bilateral</td>
+<td><a href="./adrs/ADR-005-at-least-once-x-event-id.md">ADR-005</a></td>
+</tr>
+<tr>
+<td>Retry limitado (5x) + DLQ</td>
+<td>Cliente offline &gt;15h perde entrega automática vs. retry eterno</td>
+<td><a href="./adrs/ADR-003-retry-backoff-dlq.md">ADR-003</a></td>
+</tr>
+<tr>
+<td>Secret por endpoint + HMAC</td>
+<td>Gestão de secrets no cliente vs. secret global</td>
+<td><a href="./adrs/ADR-004-hmac-sha256-secret-por-endpoint.md">ADR-004</a></td>
+</tr>
+<tr>
+<td>Sem email/dashboard na v1</td>
+<td>Menor escopo vs. visibilidade proativa para o cliente</td>
+<td>Transcrição [09:37], [09:40]</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Dependências</h2>
+<table>
+<thead>
+<tr>
+<th>Dependência</th>
+<th>Tipo</th>
+<th>Descrição</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Módulo de pedidos (<code>changeStatus</code>)</td>
+<td>Técnica</td>
+<td>Ponto de publicação de eventos na outbox</td>
+</tr>
+<tr>
+<td>MySQL / Prisma</td>
+<td>Infraestrutura</td>
+<td>Persistência de outbox, configuração e DLQ</td>
+</tr>
+<tr>
+<td>Autenticação JWT existente</td>
+<td>Técnica</td>
+<td>API de configuração e controle ADMIN</td>
+</tr>
+<tr>
+<td>Revisão de segurança (Sofia)</td>
+<td>Processo</td>
+<td>2 dias úteis antes do deploy; bloqueante para go-live</td>
+</tr>
+<tr>
+<td>Portal do desenvolvedor</td>
+<td>Produto</td>
+<td>Documentação de integração para clientes B2B (Marcos)</td>
+</tr>
+<tr>
+<td>Prazo comercial Atlas</td>
+<td>Negócio</td>
+<td>Entrega até fim de novembro</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Riscos e mitigação</h2>
+<table>
+<thead>
+<tr>
+<th>Risco</th>
+<th>Probabilidade</th>
+<th>Impacto</th>
+<th>Mitigação</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Atraso no prazo</strong> (3 sprints + revisão segurança)</td>
+<td>Média</td>
+<td>Alto — perda do cliente Atlas</td>
+<td>Estimativa em 3 sprints com buffer; revisão Sofia reservada com antecedência</td>
+</tr>
+<tr>
+<td><strong>Cliente não implementa deduplicação</strong> (<code>X-Event-Id</code>)</td>
+<td>Média</td>
+<td>Alto — processamento duplicado no ERP</td>
+<td>Documentação destacada no portal; exemplos de integração</td>
+</tr>
+<tr>
+<td><strong>Endpoint do cliente offline prolongado</strong></td>
+<td>Média</td>
+<td>Médio — evento vai para DLQ</td>
+<td>Retry cobre ~15h; replay ADMIN; histórico de entregas para diagnóstico</td>
+</tr>
+<tr>
+<td><strong>Vazamento de secret no lado do cliente</strong></td>
+<td>Média</td>
+<td>Alto — falsificação de eventos</td>
+<td>Secret por endpoint; rotação com grace 24h; TLS obrigatório</td>
+</tr>
+<tr>
+<td><strong>Volume alto de eventos sem rate limit</strong></td>
+<td>Baixa</td>
+<td>Médio — sobrecarga no cliente</td>
+<td>Monitorar em produção; rate limiting adiado conforme <a href="./RFC.md">RFC</a></td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Critérios de aceitação</h2>
+<h3>Negócio</h3>
+<ul>
+<li><input disabled="" type="checkbox"> Atlas, MaxDistribuição e Nova Cargo conseguem cadastrar webhook e receber evento em ambiente de homologação.</li>
+<li><input disabled="" type="checkbox"> Latência de entrega abaixo de 10 segundos validada em teste com endpoint mock.</li>
+<li><input disabled="" type="checkbox"> Portal documenta integração: cadastro, validação HMAC, deduplicação por <code>X-Event-Id</code>.</li>
+</ul>
+<h3>Produto</h3>
+<ul>
+<li><input disabled="" type="checkbox"> CRUD completo de webhooks funcional via API autenticada.</li>
+<li><input disabled="" type="checkbox"> Histórico de 100 entregas consultável por webhook.</li>
+<li><input disabled="" type="checkbox"> Rotação de secret com grace de 24h operacional.</li>
+<li><input disabled="" type="checkbox"> Replay DLQ restrito a ADMIN com trilha de auditoria.</li>
+</ul>
+<h3>Fora de escopo confirmado</h3>
+<ul>
+<li><input disabled="" type="checkbox"> Nenhum envio de email de alerta implementado.</li>
+<li><input disabled="" type="checkbox"> Nenhum painel visual de webhooks implementado.</li>
+</ul>
+<p>Critérios técnicos detalhados no <a href="./FDD.md">FDD</a>, seção &quot;Critérios de aceite técnicos&quot;.</p>
+<hr>
+<h2>Estratégia de testes e validação</h2>
+<table>
+<thead>
+<tr>
+<th>Fase</th>
+<th>O que validar</th>
+<th>Responsável</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Unitário</strong></td>
+<td>Schemas Zod (HTTPS, status), geração HMAC, backoff schedule</td>
+<td>Engenharia</td>
+</tr>
+<tr>
+<td><strong>Integração</strong></td>
+<td><code>changeStatus</code> → outbox na mesma transação; rollback se falhar</td>
+<td>Engenharia (Pedidos)</td>
+</tr>
+<tr>
+<td><strong>Integração worker</strong></td>
+<td>Polling, entrega mock, retry, transição para DLQ</td>
+<td>Engenharia (Plataforma)</td>
+</tr>
+<tr>
+<td><strong>Segurança</strong></td>
+<td>HMAC, rotação de secret, TLS, redaction de logs</td>
+<td>Sofia (pré-deploy)</td>
+</tr>
+<tr>
+<td><strong>E2E com cliente piloto</strong></td>
+<td>Fluxo real Atlas em homologação: cadastro → evento → validação HMAC</td>
+<td>PM + cliente</td>
+</tr>
+<tr>
+<td><strong>Aceite de negócio</strong></td>
+<td>Meta p95 &lt; 10s; 3 clientes piloto ativos</td>
+<td>Marcos</td>
+</tr>
+</tbody></table>
+<p>Validação de regressão no módulo de pedidos existente (<code>tests/orders.test.ts</code>) para garantir que <code>changeStatus</code> não quebrou comportamento anterior.</p>
+
+    </main>
+  </div>
+</body>
+</html>

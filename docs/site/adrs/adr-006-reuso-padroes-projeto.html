@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ADR-006-reuso-padroes-projeto — Webhooks OMS</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="commit-banner">
+      <strong>source_commit:</strong>
+      <code id="source-commit">af89c168ca473aa3e204f3f14f2717f98963508d</code>
+      <span class="generated-at">gerado em 2026-07-05T13:54:50.580Z</span>
+    </div>
+    <h1>Sistema de Webhooks — Design Docs</h1>
+  </header>
+  <div class="layout">
+    <nav class="sidebar">
+      <ul><li><a href="index.html">Início</a></li>
+<li data-group="ADRs"><a href="adrs/adr-001-outbox-no-mysql.html">ADR-001-OUTBOX-NO-MYSQL</a></li>
+<li data-group="ADRs"><a href="adrs/adr-002-worker-polling-processo-separado.html">ADR-002-WORKER-POLLING-PROCESSO-SEPARADO</a></li>
+<li data-group="ADRs"><a href="adrs/adr-003-retry-backoff-dlq.html">ADR-003-RETRY-BACKOFF-DLQ</a></li>
+<li data-group="ADRs"><a href="adrs/adr-004-hmac-sha256-secret-por-endpoint.html">ADR-004-HMAC-SHA256-SECRET-POR-ENDPOINT</a></li>
+<li data-group="ADRs"><a href="adrs/adr-005-at-least-once-x-event-id.html">ADR-005-AT-LEAST-ONCE-X-EVENT-ID</a></li>
+<li data-group="ADRs"><a href="adrs/adr-006-reuso-padroes-projeto.html">ADR-006-REUSO-PADROES-PROJETO</a></li>
+<li data-group="ADRs"><a href="adrs/adr-007-payload-snapshot-na-insercao.html">ADR-007-PAYLOAD-SNAPSHOT-NA-INSERCAO</a></li>
+<li data-group="Documentos"><a href="fdd.html">FDD</a></li>
+<li data-group="Documentos"><a href="prd.html">PRD</a></li>
+<li data-group="Documentos"><a href="rfc.html">RFC</a></li>
+<li data-group="Documentos"><a href="tracker.html">Tracker</a></li></ul>
+    </nav>
+    <main class="content prose">
+      <h1>ADR-006: Reuso dos Padrões Existentes do Projeto</h1>
+<p><strong>Status:</strong> Aceito<br><strong>Date:</strong> 07-11-2025<br><strong>Related to:</strong></p>
+<ul>
+<li><a href="./ADR-001-outbox-no-mysql.md">ADR-001: Padrão Outbox no MySQL</a></li>
+<li><a href="./ADR-002-worker-polling-processo-separado.md">ADR-002: Worker em Processo Separado com Polling</a></li>
+</ul>
+<h2>Contexto</h2>
+<p>O OMS segue estrutura modular consistente: cada domínio de negócio organiza camadas de apresentação, regras, persistência, rotas e validação em diretório próprio sob módulos. Erros tipados, logging estruturado, middleware centralizado de exceções e controle de acesso por papel já estão estabelecidos e em uso.</p>
+<p>O módulo de webhooks de notificação de pedidos deve integrar-se sem introduzir frameworks paralelos ou convenções divergentes, facilitando manutenção pelo time atual e revisão de código alinhada ao restante da codebase.</p>
+<h2>Fatores de Decisão</h2>
+<ul>
+<li>Consistência arquitetural com módulos existentes de pedidos, clientes e produtos.</li>
+<li>Curva de aprendizado zero para engenheiros do time.</li>
+<li>Reaproveitamento de infraestrutura transversal já validada em produção.</li>
+<li>Evitar dependências externas de fila que contradizem ADR-001.</li>
+<li>Prefixo de códigos de erro identificável por domínio.</li>
+</ul>
+<h2>Alternativas Consideradas</h2>
+<ol>
+<li><strong>Novo módulo seguindo convenções existentes</strong> — mesma organização em camadas, erros tipados com prefixo de domínio, logger e middlewares sem alteração.</li>
+<li><strong>Biblioteca externa de filas e workers</strong> — abstração dedicada para processamento assíncrono.</li>
+<li><strong>Módulo monolítico sem separação de camadas</strong> — implementação concentrada em poucos arquivos.</li>
+</ol>
+<h2>Decisão</h2>
+<p><strong>Opção escolhida:</strong> Novo módulo sob a mesma estrutura modular dos demais domínios, reutilizando erros tipados, logger estruturado, middleware de exceções, autenticação com controle de papel e validação declarativa, porque preserva homogeneidade da codebase e reduz superfície de mudanças em componentes transversais.</p>
+<p>Códigos de erro do domínio usam prefixo dedicado para distinguir falhas de webhook de erros de pedidos ou estoque. O worker segue padrão de entry-point similar ao da API principal. A integração com mudança de status de pedidos ocorre na mesma transação de banco (ADR-001), invocando publicação de evento sem acoplar repositórios inteiros entre domínios.</p>
+<h2>Prós e Contras das Opções</h2>
+<h3>Módulo com convenções existentes</h3>
+<ul>
+<li><strong>Prós:</strong> Familiaridade imediata; error handling e logging funcionam sem mudanças; testes seguem mesmos padrões; revisão de código uniforme.</li>
+<li><strong>Contras:</strong> Domínio de pedidos ganha dependência leve da publicação de eventos; novos códigos de erro precisam documentação no FDD.</li>
+</ul>
+<h3>Biblioteca externa de filas</h3>
+<ul>
+<li><strong>Prós:</strong> Abstrações prontas para retry e scheduling.</li>
+<li><strong>Contras:</strong> Introduz Redis e stack diferente; contradiz outbox no MySQL; aumenta superfície operacional.</li>
+</ul>
+<h3>Módulo monolítico</h3>
+<ul>
+<li><strong>Prós:</strong> Menos arquivos inicialmente.</li>
+<li><strong>Contras:</strong> Quebra consistência com orders e customers; dificulta manutenção e testes isolados.</li>
+</ul>
+<h2>Consequências</h2>
+<h3>Positivas</h3>
+<ul>
+<li>Curva de aprendizado zero para engenheiros já familiarizados com o OMS.</li>
+<li>Error handling, logging e autenticação funcionam sem alteração nos middlewares transversais.</li>
+<li>Code review e testes seguem os mesmos padrões dos módulos existentes.</li>
+<li>Ancora worker (ADR-002) e integração transacional (ADR-001) em convenções já validadas.</li>
+</ul>
+<h3>Negativas</h3>
+<ul>
+<li>Domínio de pedidos ganha dependência leve da publicação de eventos de webhook.</li>
+<li>Códigos de erro com prefixo <code>WEBHOOK_</code> precisam ser catalogados no FDD para evitar colisão semântica.</li>
+<li>Módulo novo ainda exige modelagem de persistência e worker, apesar do reuso de padrões.</li>
+</ul>
+<h2>Referências</h2>
+<ul>
+<li>src/modules/orders/order.service.ts:1</li>
+<li>src/shared/errors/app-error.ts:1</li>
+<li>src/shared/errors/http-errors.ts:1</li>
+<li>src/middlewares/error.middleware.ts:14</li>
+<li>src/shared/logger/index.ts:1</li>
+</ul>
+
+    </main>
+  </div>
+</body>
+</html>
