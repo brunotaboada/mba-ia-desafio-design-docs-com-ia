@@ -90,3 +90,36 @@ Mapeamento de itens documentados à origem na transcrição (`TRANSCRICAO.md`) o
 | RFC-RISK-05 | docs/RFC.md | Risco | Atraso revisão segurança — 2 dias úteis Sofia | TRANSCRICAO | [09:46] Sofia |
 | RFC-ADR-01 | docs/RFC.md | Decisão | Link para ADR-001 Outbox MySQL | TRANSCRICAO | [09:08] Larissa |
 | RFC-ADR-02 | docs/RFC.md | Decisão | Link para ADR-002 Worker polling | TRANSCRICAO | [09:10] Larissa |
+| FDD-CTX-01 | docs/FDD.md | Decisão | Integração transacional em changeStatus | TRANSCRICAO | [09:40] Bruno |
+| FDD-CTX-02 | docs/FDD.md | Restrição | customer_id no body/path, não no JWT | TRANSCRICAO | [09:32] Larissa |
+| FDD-OBJ-01 | docs/FDD.md | Requisito Não Funcional | Latência de entrega abaixo de 10 segundos | TRANSCRICAO | [09:02] Marcos |
+| FDD-OBJ-02 | docs/FDD.md | Decisão | Até 5 tentativas com backoff definido | TRANSCRICAO | [09:16] Larissa |
+| FDD-SCP-01 | docs/FDD.md | Decisão | Módulo src/modules/webhooks e worker src/worker.ts | TRANSCRICAO | [09:27] Bruno |
+| FDD-SCP-02 | docs/FDD.md | Restrição | Email de alerta excluído | TRANSCRICAO | [09:37] Larissa |
+| FDD-SCP-03 | docs/FDD.md | Restrição | Dashboard visual excluído | TRANSCRICAO | [09:40] Larissa |
+| FDD-FLX-01 | docs/FDD.md | Decisão | publishWebhookEvent dentro da transação | TRANSCRICAO | [09:41] Bruno |
+| FDD-FLX-02 | docs/FDD.md | Decisão | Filtro de status subscrito na inserção da outbox | TRANSCRICAO | [09:34] Bruno |
+| FDD-FLX-03 | docs/FDD.md | Decisão | Worker polling 2s, batch de pendentes | TRANSCRICAO | [09:09] Diego |
+| FDD-FLX-04 | docs/FDD.md | Decisão | Backoff 1m/5m/30m/2h/12h antes de DLQ | TRANSCRICAO | [09:17] Diego |
+| FDD-FLX-05 | docs/FDD.md | Decisão | Replay DLQ com log de operador ADMIN | TRANSCRICAO | [09:36] Sofia |
+| FDD-CON-01 | docs/FDD.md | Requisito Funcional | POST /api/webhooks cadastro com secret gerada | TRANSCRICAO | [09:31] Marcos |
+| FDD-CON-02 | docs/FDD.md | Requisito Funcional | GET /webhooks/:id/deliveries últimos 100 | TRANSCRICAO | [09:34] Marcos |
+| FDD-CON-03 | docs/FDD.md | Requisito Funcional | PATCH e DELETE de webhook | TRANSCRICAO | [09:33] Bruno |
+| FDD-CON-04 | docs/FDD.md | Requisito Funcional | POST admin dead-letter replay | TRANSCRICAO | [09:18] Diego |
+| FDD-CON-05 | docs/FDD.md | Requisito Funcional | POST rotate-secret grace 24h | TRANSCRICAO | [09:21] Sofia |
+| FDD-CON-06 | docs/FDD.md | Decisão | Headers X-Event-Id, X-Signature, X-Timestamp, X-Webhook-Id | TRANSCRICAO | [09:44] Diego |
+| FDD-CON-07 | docs/FDD.md | Decisão | Payload order.status_changed sem items | TRANSCRICAO | [09:43] Diego |
+| FDD-ERR-01 | docs/FDD.md | Decisão | Códigos de erro prefixo WEBHOOK_ | TRANSCRICAO | [09:29] Larissa |
+| FDD-ERR-02 | docs/FDD.md | Decisão | WEBHOOK_INVALID_URL para URL não HTTPS | TRANSCRICAO | [09:23] Sofia |
+| FDD-ERR-03 | docs/FDD.md | Decisão | Payload >64KB erro sem truncar | TRANSCRICAO | [09:24] Larissa |
+| FDD-ERR-04 | docs/FDD.md | Decisão | Timeout HTTP outbound 10 segundos | TRANSCRICAO | [09:42] Diego |
+| FDD-OBS-01 | docs/FDD.md | Decisão | Logs estruturados via Pino existente | TRANSCRICAO | [09:29] Bruno |
+| FDD-OBS-02 | docs/FDD.md | Decisão | Redação de secrets no logger | CODIGO | src/shared/logger/index.ts |
+| FDD-INT-01 | docs/FDD.md | Decisão | Extensão de changeStatus com publishWebhookEvent | CODIGO | src/modules/orders/order.service.ts |
+| FDD-INT-02 | docs/FDD.md | Decisão | Transições OrderStatus definem eventos elegíveis | CODIGO | src/modules/orders/order.status.ts |
+| FDD-INT-03 | docs/FDD.md | Decisão | Erros WEBHOOK_ estendem AppError | CODIGO | src/shared/errors/app-error.ts |
+| FDD-INT-04 | docs/FDD.md | Decisão | requireRole ADMIN no replay DLQ | CODIGO | src/middlewares/auth.middleware.ts |
+| FDD-INT-05 | docs/FDD.md | Decisão | Serialização de erros via error middleware | CODIGO | src/middlewares/error.middleware.ts |
+| FDD-INT-06 | docs/FDD.md | Decisão | Registro de rotas em buildApiRouter | CODIGO | src/routes/index.ts |
+| FDD-RISK-01 | docs/FDD.md | Risco | Cliente sem deduplicação X-Event-Id | TRANSCRICAO | [09:25] Sofia |
+| FDD-RISK-02 | docs/FDD.md | Risco | Revisão segurança pré-deploy Sofia | TRANSCRICAO | [09:46] Sofia |
