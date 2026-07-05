@@ -34,7 +34,7 @@ Segui a ordem sugerida pelo enunciado, com o Tracker crescendo a cada documento:
 3. **RFC** — Proposta concisa referenciando ADRs; alternativas descartadas e questões em aberto da reunião.
 4. **FDD** — Contratos HTTP, fluxos outbox/worker/retry/DLQ, matriz `WEBHOOK_*`, integração com 10 arquivos reais.
 5. **PRD** — Consolidação de negócio (10 FRs, 10 NFRs, métricas, riscos) com base nos docs técnicos.
-6. **Tracker** — ~164 linhas ligando itens a `[hh:mm] Nome` ou caminho de código.
+6. **Tracker** — ~165 linhas ligando itens a `[hh:mm] Nome` ou caminho de código.
 7. **README do processo** — Este arquivo, após revisão da checklist.
 8. **Parte 2** — Site HTML, `npm run docs:update`, demonstração com `fase-2/`.
 
@@ -90,7 +90,7 @@ Foram **5 ciclos principais** de geração → revisão → correção:
 
 4. **FDD — rubrica literal** — Ajuste de títulos e inclusão explícita de Matriz de erros, Estratégias de resiliência e Integração com 10 arquivos do código base.
 
-5. **Tracker — cobertura** — Expandido de ~60 para **164 linhas** ao produzir RFC, FDD e PRD; validação de que itens sem `[hh:mm]` ou path real foram corrigidos ou removidos dos docs.
+5. **Tracker — cobertura** — Expandido de ~60 para **165 linhas** ao produzir RFC, FDD e PRD; validação de que itens sem `[hh:mm]` ou path real foram corrigidos ou removidos dos docs.
 
 ---
 
@@ -143,7 +143,7 @@ Foram **5 ciclos principais** de geração → revisão → correção:
 | RFC — alternativas, questões em aberto, links para ADRs | ✅ |
 | FDD — ≥4 endpoints, `WEBHOOK_*`, integração ≥4 arquivos, observabilidade | ✅ |
 | ADRs — 7 arquivos, 6/6 decisões principais, referências ao código | ✅ |
-| Tracker — 164 linhas; 88% TRANSCRICAO; 19 linhas CODIGO | ✅ |
+| Tracker — 165 linhas; 88% TRANSCRICAO; 20 linhas CODIGO | ✅ |
 | README — processo documentado | ✅ |
 | Consistência — paths citados existem no repo | ✅ |
 
