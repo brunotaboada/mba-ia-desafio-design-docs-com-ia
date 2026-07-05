@@ -1,0 +1,1364 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TRACKER — Webhooks OMS</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="commit-banner">
+      <strong>source_commit:</strong>
+      <code id="source-commit">6ea0a8e2719f5df6b51bab35a082f9f8ea744a47</code>
+      <span class="generated-at">gerado em 2026-07-05T13:53:35.768Z</span>
+    </div>
+    <h1>Sistema de Webhooks — Design Docs</h1>
+  </header>
+  <div class="layout">
+    <nav class="sidebar">
+      <ul><li><a href="index.html">Início</a></li>
+<li data-group="ADRs"><a href="adrs/adr-001-outbox-no-mysql.html">ADR-001-OUTBOX-NO-MYSQL</a></li>
+<li data-group="ADRs"><a href="adrs/adr-002-worker-polling-processo-separado.html">ADR-002-WORKER-POLLING-PROCESSO-SEPARADO</a></li>
+<li data-group="ADRs"><a href="adrs/adr-003-retry-backoff-dlq.html">ADR-003-RETRY-BACKOFF-DLQ</a></li>
+<li data-group="ADRs"><a href="adrs/adr-004-hmac-sha256-secret-por-endpoint.html">ADR-004-HMAC-SHA256-SECRET-POR-ENDPOINT</a></li>
+<li data-group="ADRs"><a href="adrs/adr-005-at-least-once-x-event-id.html">ADR-005-AT-LEAST-ONCE-X-EVENT-ID</a></li>
+<li data-group="ADRs"><a href="adrs/adr-006-reuso-padroes-projeto.html">ADR-006-REUSO-PADROES-PROJETO</a></li>
+<li data-group="ADRs"><a href="adrs/adr-007-payload-snapshot-na-insercao.html">ADR-007-PAYLOAD-SNAPSHOT-NA-INSERCAO</a></li>
+<li data-group="Documentos"><a href="fdd.html">FDD</a></li>
+<li data-group="Documentos"><a href="prd.html">PRD</a></li>
+<li data-group="Documentos"><a href="rfc.html">RFC</a></li>
+<li data-group="Documentos"><a href="tracker.html">Tracker</a></li></ul>
+    </nav>
+    <main class="content prose">
+      <h1>Tracker de Rastreabilidade</h1>
+<p>Mapeamento de itens documentados à origem na transcrição (<code>TRANSCRICAO.md</code>) ou no código base. Atualizado conforme novos documentos (RFC, FDD, PRD) forem produzidos.</p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Documento</th>
+<th>Tipo</th>
+<th>Conteúdo (resumo)</th>
+<th>Fonte</th>
+<th>Localização</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>ADR-001-DEC-01</td>
+<td>docs/adrs/ADR-001-outbox-no-mysql.md</td>
+<td>Decisão</td>
+<td>Adotar padrão Transactional Outbox no MySQL</td>
+<td>TRANSCRICAO</td>
+<td>[09:06] Diego</td>
+</tr>
+<tr>
+<td>ADR-001-DEC-02</td>
+<td>docs/adrs/ADR-001-outbox-no-mysql.md</td>
+<td>Decisão</td>
+<td>Inserir evento na mesma transação da mudança de status</td>
+<td>TRANSCRICAO</td>
+<td>[09:06] Diego</td>
+</tr>
+<tr>
+<td>ADR-001-DEC-03</td>
+<td>docs/adrs/ADR-001-outbox-no-mysql.md</td>
+<td>Decisão</td>
+<td>Outbox decidido formalmente pelo time</td>
+<td>TRANSCRICAO</td>
+<td>[09:08] Larissa</td>
+</tr>
+<tr>
+<td>ADR-001-ALT-01</td>
+<td>docs/adrs/ADR-001-outbox-no-mysql.md</td>
+<td>Trade-off</td>
+<td>Disparo síncrono rejeitado — bloqueia transação de pedidos</td>
+<td>TRANSCRICAO</td>
+<td>[09:04] Bruno</td>
+</tr>
+<tr>
+<td>ADR-001-ALT-02</td>
+<td>docs/adrs/ADR-001-outbox-no-mysql.md</td>
+<td>Trade-off</td>
+<td>Redis Streams rejeitado — overengineering para time pequeno</td>
+<td>TRANSCRICAO</td>
+<td>[09:07] Diego</td>
+</tr>
+<tr>
+<td>ADR-001-CON-01</td>
+<td>docs/adrs/ADR-001-outbox-no-mysql.md</td>
+<td>Restrição</td>
+<td>Arquivamento de eventos após 30 dias fora do escopo</td>
+<td>TRANSCRICAO</td>
+<td>[09:08] Diego</td>
+</tr>
+<tr>
+<td>ADR-001-COD-01</td>
+<td>docs/adrs/ADR-001-outbox-no-mysql.md</td>
+<td>Decisão</td>
+<td>Integração na transação de mudança de status de pedidos</td>
+<td>CODIGO</td>
+<td>src/modules/orders/order.service.ts</td>
+</tr>
+<tr>
+<td>ADR-001-COD-02</td>
+<td>docs/adrs/ADR-001-outbox-no-mysql.md</td>
+<td>Decisão</td>
+<td>Identificadores UUID como padrão do projeto</td>
+<td>CODIGO</td>
+<td>prisma/schema.prisma</td>
+</tr>
+<tr>
+<td>ADR-002-DEC-01</td>
+<td>docs/adrs/ADR-002-worker-polling-processo-separado.md</td>
+<td>Decisão</td>
+<td>Worker em polling a cada 2 segundos</td>
+<td>TRANSCRICAO</td>
+<td>[09:09] Diego</td>
+</tr>
+<tr>
+<td>ADR-002-DEC-02</td>
+<td>docs/adrs/ADR-002-worker-polling-processo-separado.md</td>
+<td>Decisão</td>
+<td>Latência mínima de 2s aceita pelo produto</td>
+<td>TRANSCRICAO</td>
+<td>[09:10] Larissa</td>
+</tr>
+<tr>
+<td>ADR-002-DEC-03</td>
+<td>docs/adrs/ADR-002-worker-polling-processo-separado.md</td>
+<td>Decisão</td>
+<td>Worker como processo separado da API</td>
+<td>TRANSCRICAO</td>
+<td>[09:11] Diego</td>
+</tr>
+<tr>
+<td>ADR-002-DEC-04</td>
+<td>docs/adrs/ADR-002-worker-polling-processo-separado.md</td>
+<td>Decisão</td>
+<td>Entry-point dedicado e script npm run worker</td>
+<td>TRANSCRICAO</td>
+<td>[09:11] Larissa</td>
+</tr>
+<tr>
+<td>ADR-002-DEC-05</td>
+<td>docs/adrs/ADR-002-worker-polling-processo-separado.md</td>
+<td>Decisão</td>
+<td>Timeout HTTP de 10 segundos no envio</td>
+<td>TRANSCRICAO</td>
+<td>[09:42] Diego</td>
+</tr>
+<tr>
+<td>ADR-002-ALT-01</td>
+<td>docs/adrs/ADR-002-worker-polling-processo-separado.md</td>
+<td>Trade-off</td>
+<td>Trigger MySQL rejeitado — sem listener nativo</td>
+<td>TRANSCRICAO</td>
+<td>[09:09] Diego</td>
+</tr>
+<tr>
+<td>ADR-002-ALT-02</td>
+<td>docs/adrs/ADR-002-worker-polling-processo-separado.md</td>
+<td>Trade-off</td>
+<td>Worker embutido na API rejeitado</td>
+<td>TRANSCRICAO</td>
+<td>[09:11] Diego</td>
+</tr>
+<tr>
+<td>ADR-002-CON-01</td>
+<td>docs/adrs/ADR-002-worker-polling-processo-separado.md</td>
+<td>Restrição</td>
+<td>Single-worker; ordering global não garantida</td>
+<td>TRANSCRICAO</td>
+<td>[09:12] Diego</td>
+</tr>
+<tr>
+<td>ADR-002-CON-02</td>
+<td>docs/adrs/ADR-002-worker-polling-processo-separado.md</td>
+<td>Restrição</td>
+<td>SLA de entrega abaixo de 10 segundos</td>
+<td>TRANSCRICAO</td>
+<td>[09:02] Marcos</td>
+</tr>
+<tr>
+<td>ADR-002-COD-01</td>
+<td>docs/adrs/ADR-002-worker-polling-processo-separado.md</td>
+<td>Decisão</td>
+<td>Referência de bootstrap para entry-point do worker</td>
+<td>CODIGO</td>
+<td>src/server.ts</td>
+</tr>
+<tr>
+<td>ADR-003-DEC-01</td>
+<td>docs/adrs/ADR-003-retry-backoff-dlq.md</td>
+<td>Decisão</td>
+<td>Backoff exponencial em falhas de entrega</td>
+<td>TRANSCRICAO</td>
+<td>[09:15] Diego</td>
+</tr>
+<tr>
+<td>ADR-003-DEC-02</td>
+<td>docs/adrs/ADR-003-retry-backoff-dlq.md</td>
+<td>Decisão</td>
+<td>Cinco tentativas de entrega por evento</td>
+<td>TRANSCRICAO</td>
+<td>[09:16] Larissa</td>
+</tr>
+<tr>
+<td>ADR-003-DEC-03</td>
+<td>docs/adrs/ADR-003-retry-backoff-dlq.md</td>
+<td>Decisão</td>
+<td>Progressão 1m/5m/30m/2h/12h</td>
+<td>TRANSCRICAO</td>
+<td>[09:17] Diego</td>
+</tr>
+<tr>
+<td>ADR-003-DEC-04</td>
+<td>docs/adrs/ADR-003-retry-backoff-dlq.md</td>
+<td>Decisão</td>
+<td>Dead letter queue em store separada</td>
+<td>TRANSCRICAO</td>
+<td>[09:18] Diego</td>
+</tr>
+<tr>
+<td>ADR-003-DEC-05</td>
+<td>docs/adrs/ADR-003-retry-backoff-dlq.md</td>
+<td>Decisão</td>
+<td>Replay manual de DLQ por administrador</td>
+<td>TRANSCRICAO</td>
+<td>[09:18] Diego</td>
+</tr>
+<tr>
+<td>ADR-003-DEC-06</td>
+<td>docs/adrs/ADR-003-retry-backoff-dlq.md</td>
+<td>Decisão</td>
+<td>Replay exige role ADMIN com auditoria</td>
+<td>TRANSCRICAO</td>
+<td>[09:36] Sofia</td>
+</tr>
+<tr>
+<td>ADR-003-ALT-01</td>
+<td>docs/adrs/ADR-003-retry-backoff-dlq.md</td>
+<td>Trade-off</td>
+<td>Três tentativas rejeitadas — janela curta demais</td>
+<td>TRANSCRICAO</td>
+<td>[09:16] Diego</td>
+</tr>
+<tr>
+<td>ADR-003-ALT-02</td>
+<td>docs/adrs/ADR-003-retry-backoff-dlq.md</td>
+<td>Trade-off</td>
+<td>Retry indefinido rejeitado — eventos órfãos</td>
+<td>TRANSCRICAO</td>
+<td>[09:15] Diego</td>
+</tr>
+<tr>
+<td>ADR-003-COD-01</td>
+<td>docs/adrs/ADR-003-retry-backoff-dlq.md</td>
+<td>Decisão</td>
+<td>Controle de acesso ADMIN via middleware existente</td>
+<td>CODIGO</td>
+<td>src/middlewares/auth.middleware.ts</td>
+</tr>
+<tr>
+<td>ADR-004-DEC-01</td>
+<td>docs/adrs/ADR-004-hmac-sha256-secret-por-endpoint.md</td>
+<td>Decisão</td>
+<td>Assinatura HMAC-SHA256 sobre corpo da requisição</td>
+<td>TRANSCRICAO</td>
+<td>[09:20] Sofia</td>
+</tr>
+<tr>
+<td>ADR-004-DEC-02</td>
+<td>docs/adrs/ADR-004-hmac-sha256-secret-por-endpoint.md</td>
+<td>Decisão</td>
+<td>Secret única por endpoint de webhook</td>
+<td>TRANSCRICAO</td>
+<td>[09:21] Sofia</td>
+</tr>
+<tr>
+<td>ADR-004-DEC-03</td>
+<td>docs/adrs/ADR-004-hmac-sha256-secret-por-endpoint.md</td>
+<td>Decisão</td>
+<td>Rotação de secret com grace period de 24h</td>
+<td>TRANSCRICAO</td>
+<td>[09:21] Sofia</td>
+</tr>
+<tr>
+<td>ADR-004-DEC-04</td>
+<td>docs/adrs/ADR-004-hmac-sha256-secret-por-endpoint.md</td>
+<td>Decisão</td>
+<td>TLS obrigatório — apenas URLs HTTPS</td>
+<td>TRANSCRICAO</td>
+<td>[09:23] Sofia</td>
+</tr>
+<tr>
+<td>ADR-004-DEC-05</td>
+<td>docs/adrs/ADR-004-hmac-sha256-secret-por-endpoint.md</td>
+<td>Decisão</td>
+<td>Limite de payload 64KB — erro sem truncar</td>
+<td>TRANSCRICAO</td>
+<td>[09:24] Larissa</td>
+</tr>
+<tr>
+<td>ADR-004-ALT-01</td>
+<td>docs/adrs/ADR-004-hmac-sha256-secret-por-endpoint.md</td>
+<td>Trade-off</td>
+<td>Secret global rejeitada — blast radius</td>
+<td>TRANSCRICAO</td>
+<td>[09:21] Sofia</td>
+</tr>
+<tr>
+<td>ADR-004-CON-01</td>
+<td>docs/adrs/ADR-004-hmac-sha256-secret-por-endpoint.md</td>
+<td>Restrição</td>
+<td>Revisão de segurança antes do deploy</td>
+<td>TRANSCRICAO</td>
+<td>[09:46] Sofia</td>
+</tr>
+<tr>
+<td>ADR-005-DEC-01</td>
+<td>docs/adrs/ADR-005-at-least-once-x-event-id.md</td>
+<td>Decisão</td>
+<td>Garantia at-least-once na entrega</td>
+<td>TRANSCRICAO</td>
+<td>[09:24] Diego</td>
+</tr>
+<tr>
+<td>ADR-005-DEC-02</td>
+<td>docs/adrs/ADR-005-at-least-once-x-event-id.md</td>
+<td>Decisão</td>
+<td>Identificador único por evento para deduplicação</td>
+<td>TRANSCRICAO</td>
+<td>[09:25] Diego</td>
+</tr>
+<tr>
+<td>ADR-005-DEC-03</td>
+<td>docs/adrs/ADR-005-at-least-once-x-event-id.md</td>
+<td>Decisão</td>
+<td>Cliente responsável por idempotência</td>
+<td>TRANSCRICAO</td>
+<td>[09:25] Sofia</td>
+</tr>
+<tr>
+<td>ADR-005-ALT-01</td>
+<td>docs/adrs/ADR-005-at-least-once-x-event-id.md</td>
+<td>Trade-off</td>
+<td>Exactly-once rejeitado — complexidade bilateral</td>
+<td>TRANSCRICAO</td>
+<td>[09:25] Diego</td>
+</tr>
+<tr>
+<td>ADR-006-DEC-01</td>
+<td>docs/adrs/ADR-006-reuso-padroes-projeto.md</td>
+<td>Decisão</td>
+<td>Módulo webhooks segue estrutura modular existente</td>
+<td>TRANSCRICAO</td>
+<td>[09:27] Bruno</td>
+</tr>
+<tr>
+<td>ADR-006-DEC-02</td>
+<td>docs/adrs/ADR-006-reuso-padroes-projeto.md</td>
+<td>Decisão</td>
+<td>Prefixo WEBHOOK_ em códigos de erro</td>
+<td>TRANSCRICAO</td>
+<td>[09:29] Larissa</td>
+</tr>
+<tr>
+<td>ADR-006-DEC-03</td>
+<td>docs/adrs/ADR-006-reuso-padroes-projeto.md</td>
+<td>Decisão</td>
+<td>Reuso de logger estruturado existente</td>
+<td>TRANSCRICAO</td>
+<td>[09:29] Bruno</td>
+</tr>
+<tr>
+<td>ADR-006-DEC-04</td>
+<td>docs/adrs/ADR-006-reuso-padroes-projeto.md</td>
+<td>Decisão</td>
+<td>Error middleware trata erros sem alteração</td>
+<td>TRANSCRICAO</td>
+<td>[09:29] Bruno</td>
+</tr>
+<tr>
+<td>ADR-006-DEC-05</td>
+<td>docs/adrs/ADR-006-reuso-padroes-projeto.md</td>
+<td>Decisão</td>
+<td>Reuso máximo de padrões do projeto</td>
+<td>TRANSCRICAO</td>
+<td>[09:30] Larissa</td>
+</tr>
+<tr>
+<td>ADR-006-ALT-01</td>
+<td>docs/adrs/ADR-006-reuso-padroes-projeto.md</td>
+<td>Trade-off</td>
+<td>Biblioteca externa de filas rejeitada</td>
+<td>TRANSCRICAO</td>
+<td>[09:07] Diego</td>
+</tr>
+<tr>
+<td>ADR-006-COD-01</td>
+<td>docs/adrs/ADR-006-reuso-padroes-projeto.md</td>
+<td>Decisão</td>
+<td>Modelo de erros tipados reutilizado</td>
+<td>CODIGO</td>
+<td>src/shared/errors/app-error.ts</td>
+</tr>
+<tr>
+<td>ADR-006-COD-02</td>
+<td>docs/adrs/ADR-006-reuso-padroes-projeto.md</td>
+<td>Decisão</td>
+<td>Hierarquia de erros HTTP do domínio</td>
+<td>CODIGO</td>
+<td>src/shared/errors/http-errors.ts</td>
+</tr>
+<tr>
+<td>ADR-006-COD-03</td>
+<td>docs/adrs/ADR-006-reuso-padroes-projeto.md</td>
+<td>Decisão</td>
+<td>Tratamento centralizado de exceções</td>
+<td>CODIGO</td>
+<td>src/middlewares/error.middleware.ts</td>
+</tr>
+<tr>
+<td>ADR-006-COD-04</td>
+<td>docs/adrs/ADR-006-reuso-padroes-projeto.md</td>
+<td>Decisão</td>
+<td>Logger com redação de dados sensíveis</td>
+<td>CODIGO</td>
+<td>src/shared/logger/index.ts</td>
+</tr>
+<tr>
+<td>ADR-007-DEC-01</td>
+<td>docs/adrs/ADR-007-payload-snapshot-na-insercao.md</td>
+<td>Decisão</td>
+<td>Payload renderizado como snapshot na inserção</td>
+<td>TRANSCRICAO</td>
+<td>[09:52] Larissa</td>
+</tr>
+<tr>
+<td>ADR-007-DEC-02</td>
+<td>docs/adrs/ADR-007-payload-snapshot-na-insercao.md</td>
+<td>Decisão</td>
+<td>Snapshot reflete instante da transição de status</td>
+<td>TRANSCRICAO</td>
+<td>[09:52] Diego</td>
+</tr>
+<tr>
+<td>ADR-007-DEC-03</td>
+<td>docs/adrs/ADR-007-payload-snapshot-na-insercao.md</td>
+<td>Decisão</td>
+<td>Filtrar status subscrito na inserção, não no envio</td>
+<td>TRANSCRICAO</td>
+<td>[09:34] Bruno</td>
+</tr>
+<tr>
+<td>ADR-007-DEC-04</td>
+<td>docs/adrs/ADR-007-payload-snapshot-na-insercao.md</td>
+<td>Decisão</td>
+<td>Payload enxuto sem itens de linha do pedido</td>
+<td>TRANSCRICAO</td>
+<td>[09:43] Diego</td>
+</tr>
+<tr>
+<td>ADR-007-ALT-01</td>
+<td>docs/adrs/ADR-007-payload-snapshot-na-insercao.md</td>
+<td>Trade-off</td>
+<td>Renderização lazy no envio rejeitada</td>
+<td>TRANSCRICAO</td>
+<td>[09:52] Bruno</td>
+</tr>
+<tr>
+<td>ADR-007-COD-01</td>
+<td>docs/adrs/ADR-007-payload-snapshot-na-insercao.md</td>
+<td>Decisão</td>
+<td>Transições de status definem eventos elegíveis</td>
+<td>CODIGO</td>
+<td>src/modules/orders/order.status.ts</td>
+</tr>
+<tr>
+<td>RFC-META-01</td>
+<td>docs/RFC.md</td>
+<td>Decisão</td>
+<td>Revisores: Larissa, Marcos, Bruno, Diego, Sofia</td>
+<td>TRANSCRICAO</td>
+<td>[09:00] Larissa</td>
+</tr>
+<tr>
+<td>RFC-TLDR-01</td>
+<td>docs/RFC.md</td>
+<td>Decisão</td>
+<td>Proposta: outbox MySQL + worker + HMAC + at-least-once</td>
+<td>TRANSCRICAO</td>
+<td>[09:48] Larissa</td>
+</tr>
+<tr>
+<td>RFC-CTX-01</td>
+<td>docs/RFC.md</td>
+<td>Decisão</td>
+<td>Três clientes B2B exigem notificação de mudança de status</td>
+<td>TRANSCRICAO</td>
+<td>[09:00] Marcos</td>
+</tr>
+<tr>
+<td>RFC-CTX-02</td>
+<td>docs/RFC.md</td>
+<td>Restrição</td>
+<td>SLA tempo real = abaixo de 10 segundos</td>
+<td>TRANSCRICAO</td>
+<td>[09:02] Marcos</td>
+</tr>
+<tr>
+<td>RFC-CTX-03</td>
+<td>docs/RFC.md</td>
+<td>Restrição</td>
+<td>Apenas webhooks outbound (não inbound)</td>
+<td>TRANSCRICAO</td>
+<td>[09:02] Sofia</td>
+</tr>
+<tr>
+<td>RFC-CTX-04</td>
+<td>docs/RFC.md</td>
+<td>Decisão</td>
+<td>OMS sem mecanismo de notificação externa hoje</td>
+<td>CODIGO</td>
+<td>src/modules/orders/order.service.ts</td>
+</tr>
+<tr>
+<td>RFC-PROP-01</td>
+<td>docs/RFC.md</td>
+<td>Decisão</td>
+<td>Publicação transacional na mudança de status</td>
+<td>TRANSCRICAO</td>
+<td>[09:40] Bruno</td>
+</tr>
+<tr>
+<td>RFC-PROP-02</td>
+<td>docs/RFC.md</td>
+<td>Decisão</td>
+<td>Worker separado com polling 2s</td>
+<td>TRANSCRICAO</td>
+<td>[09:09] Diego</td>
+</tr>
+<tr>
+<td>RFC-PROP-03</td>
+<td>docs/RFC.md</td>
+<td>Decisão</td>
+<td>Retry 5x com backoff e DLQ</td>
+<td>TRANSCRICAO</td>
+<td>[09:17] Larissa</td>
+</tr>
+<tr>
+<td>RFC-PROP-04</td>
+<td>docs/RFC.md</td>
+<td>Decisão</td>
+<td>HMAC-SHA256, secret por endpoint, TLS obrigatório</td>
+<td>TRANSCRICAO</td>
+<td>[09:22] Sofia</td>
+</tr>
+<tr>
+<td>RFC-PROP-05</td>
+<td>docs/RFC.md</td>
+<td>Decisão</td>
+<td>At-least-once com X-Event-Id</td>
+<td>TRANSCRICAO</td>
+<td>[09:26] Larissa</td>
+</tr>
+<tr>
+<td>RFC-PROP-06</td>
+<td>docs/RFC.md</td>
+<td>Decisão</td>
+<td>Módulo webhooks reutilizando padrões do OMS</td>
+<td>TRANSCRICAO</td>
+<td>[09:30] Larissa</td>
+</tr>
+<tr>
+<td>RFC-PROP-07</td>
+<td>docs/RFC.md</td>
+<td>Decisão</td>
+<td>CRUD autenticado; replay DLQ exige ADMIN</td>
+<td>TRANSCRICAO</td>
+<td>[09:36] Sofia</td>
+</tr>
+<tr>
+<td>RFC-OUT-01</td>
+<td>docs/RFC.md</td>
+<td>Restrição</td>
+<td>Email de alerta ao cliente fora do escopo</td>
+<td>TRANSCRICAO</td>
+<td>[09:37] Larissa</td>
+</tr>
+<tr>
+<td>RFC-OUT-02</td>
+<td>docs/RFC.md</td>
+<td>Restrição</td>
+<td>Dashboard visual fora do escopo</td>
+<td>TRANSCRICAO</td>
+<td>[09:40] Larissa</td>
+</tr>
+<tr>
+<td>RFC-OUT-03</td>
+<td>docs/RFC.md</td>
+<td>Restrição</td>
+<td>Arquivamento outbox 30 dias fora do escopo</td>
+<td>TRANSCRICAO</td>
+<td>[09:08] Diego</td>
+</tr>
+<tr>
+<td>RFC-ALT-01</td>
+<td>docs/RFC.md</td>
+<td>Trade-off</td>
+<td>Disparo síncrono descartado — bloqueia transação</td>
+<td>TRANSCRICAO</td>
+<td>[09:04] Bruno</td>
+</tr>
+<tr>
+<td>RFC-ALT-02</td>
+<td>docs/RFC.md</td>
+<td>Trade-off</td>
+<td>Redis Streams descartado — overengineering</td>
+<td>TRANSCRICAO</td>
+<td>[09:07] Diego</td>
+</tr>
+<tr>
+<td>RFC-ALT-03</td>
+<td>docs/RFC.md</td>
+<td>Trade-off</td>
+<td>Trigger MySQL descartado — sem listener nativo</td>
+<td>TRANSCRICAO</td>
+<td>[09:09] Diego</td>
+</tr>
+<tr>
+<td>RFC-ALT-04</td>
+<td>docs/RFC.md</td>
+<td>Trade-off</td>
+<td>Worker na API descartado — reinício interrompe entrega</td>
+<td>TRANSCRICAO</td>
+<td>[09:11] Diego</td>
+</tr>
+<tr>
+<td>RFC-OPEN-01</td>
+<td>docs/RFC.md</td>
+<td>Decisão</td>
+<td>Rate limiting de saída — observar e decidir depois</td>
+<td>TRANSCRICAO</td>
+<td>[09:39] Larissa</td>
+</tr>
+<tr>
+<td>RFC-OPEN-02</td>
+<td>docs/RFC.md</td>
+<td>Decisão</td>
+<td>Multi-worker e ordering global — problema futuro</td>
+<td>TRANSCRICAO</td>
+<td>[09:13] Diego</td>
+</tr>
+<tr>
+<td>RFC-OPEN-03</td>
+<td>docs/RFC.md</td>
+<td>Decisão</td>
+<td>Endurecer roles no CRUD — fase futura</td>
+<td>TRANSCRICAO</td>
+<td>[09:37] Sofia</td>
+</tr>
+<tr>
+<td>RFC-IMP-01</td>
+<td>docs/RFC.md</td>
+<td>Decisão</td>
+<td>changeStatus como ponto de acoplamento com outbox</td>
+<td>TRANSCRICAO</td>
+<td>[09:40] Bruno</td>
+</tr>
+<tr>
+<td>RFC-IMP-02</td>
+<td>docs/RFC.md</td>
+<td>Decisão</td>
+<td>Novo processo worker além da API</td>
+<td>TRANSCRICAO</td>
+<td>[09:11] Larissa</td>
+</tr>
+<tr>
+<td>RFC-RISK-01</td>
+<td>docs/RFC.md</td>
+<td>Risco</td>
+<td>Cliente sem deduplicação — prob. média, impacto alto</td>
+<td>TRANSCRICAO</td>
+<td>[09:25] Sofia</td>
+</tr>
+<tr>
+<td>RFC-RISK-02</td>
+<td>docs/RFC.md</td>
+<td>Risco</td>
+<td>Cliente offline &gt;15h — evento na DLQ</td>
+<td>TRANSCRICAO</td>
+<td>[09:17] Marcos</td>
+</tr>
+<tr>
+<td>RFC-RISK-03</td>
+<td>docs/RFC.md</td>
+<td>Risco</td>
+<td>Crescimento da outbox — índices e arquivamento futuro</td>
+<td>TRANSCRICAO</td>
+<td>[09:08] Diego</td>
+</tr>
+<tr>
+<td>RFC-RISK-04</td>
+<td>docs/RFC.md</td>
+<td>Risco</td>
+<td>Vazamento de secret — rotação e TLS</td>
+<td>TRANSCRICAO</td>
+<td>[09:22] Diego</td>
+</tr>
+<tr>
+<td>RFC-RISK-05</td>
+<td>docs/RFC.md</td>
+<td>Risco</td>
+<td>Atraso revisão segurança — 2 dias úteis Sofia</td>
+<td>TRANSCRICAO</td>
+<td>[09:46] Sofia</td>
+</tr>
+<tr>
+<td>RFC-ADR-01</td>
+<td>docs/RFC.md</td>
+<td>Decisão</td>
+<td>Link para ADR-001 Outbox MySQL</td>
+<td>TRANSCRICAO</td>
+<td>[09:08] Larissa</td>
+</tr>
+<tr>
+<td>RFC-ADR-02</td>
+<td>docs/RFC.md</td>
+<td>Decisão</td>
+<td>Link para ADR-002 Worker polling</td>
+<td>TRANSCRICAO</td>
+<td>[09:10] Larissa</td>
+</tr>
+<tr>
+<td>FDD-CTX-01</td>
+<td>docs/FDD.md</td>
+<td>Decisão</td>
+<td>Integração transacional em changeStatus</td>
+<td>TRANSCRICAO</td>
+<td>[09:40] Bruno</td>
+</tr>
+<tr>
+<td>FDD-CTX-02</td>
+<td>docs/FDD.md</td>
+<td>Restrição</td>
+<td>customer_id no body/path, não no JWT</td>
+<td>TRANSCRICAO</td>
+<td>[09:32] Larissa</td>
+</tr>
+<tr>
+<td>FDD-OBJ-01</td>
+<td>docs/FDD.md</td>
+<td>Requisito Não Funcional</td>
+<td>Latência de entrega abaixo de 10 segundos</td>
+<td>TRANSCRICAO</td>
+<td>[09:02] Marcos</td>
+</tr>
+<tr>
+<td>FDD-OBJ-02</td>
+<td>docs/FDD.md</td>
+<td>Decisão</td>
+<td>Até 5 tentativas com backoff definido</td>
+<td>TRANSCRICAO</td>
+<td>[09:16] Larissa</td>
+</tr>
+<tr>
+<td>FDD-SCP-01</td>
+<td>docs/FDD.md</td>
+<td>Decisão</td>
+<td>Módulo src/modules/webhooks e worker src/worker.ts</td>
+<td>TRANSCRICAO</td>
+<td>[09:27] Bruno</td>
+</tr>
+<tr>
+<td>FDD-SCP-02</td>
+<td>docs/FDD.md</td>
+<td>Restrição</td>
+<td>Email de alerta excluído</td>
+<td>TRANSCRICAO</td>
+<td>[09:37] Larissa</td>
+</tr>
+<tr>
+<td>FDD-SCP-03</td>
+<td>docs/FDD.md</td>
+<td>Restrição</td>
+<td>Dashboard visual excluído</td>
+<td>TRANSCRICAO</td>
+<td>[09:40] Larissa</td>
+</tr>
+<tr>
+<td>FDD-FLX-01</td>
+<td>docs/FDD.md</td>
+<td>Decisão</td>
+<td>publishWebhookEvent dentro da transação</td>
+<td>TRANSCRICAO</td>
+<td>[09:41] Bruno</td>
+</tr>
+<tr>
+<td>FDD-FLX-02</td>
+<td>docs/FDD.md</td>
+<td>Decisão</td>
+<td>Filtro de status subscrito na inserção da outbox</td>
+<td>TRANSCRICAO</td>
+<td>[09:34] Bruno</td>
+</tr>
+<tr>
+<td>FDD-FLX-03</td>
+<td>docs/FDD.md</td>
+<td>Decisão</td>
+<td>Worker polling 2s, batch de pendentes</td>
+<td>TRANSCRICAO</td>
+<td>[09:09] Diego</td>
+</tr>
+<tr>
+<td>FDD-FLX-04</td>
+<td>docs/FDD.md</td>
+<td>Decisão</td>
+<td>Backoff 1m/5m/30m/2h/12h antes de DLQ</td>
+<td>TRANSCRICAO</td>
+<td>[09:17] Diego</td>
+</tr>
+<tr>
+<td>FDD-FLX-05</td>
+<td>docs/FDD.md</td>
+<td>Decisão</td>
+<td>Replay DLQ com log de operador ADMIN</td>
+<td>TRANSCRICAO</td>
+<td>[09:36] Sofia</td>
+</tr>
+<tr>
+<td>FDD-CON-01</td>
+<td>docs/FDD.md</td>
+<td>Requisito Funcional</td>
+<td>POST /api/webhooks cadastro com secret gerada</td>
+<td>TRANSCRICAO</td>
+<td>[09:31] Marcos</td>
+</tr>
+<tr>
+<td>FDD-CON-02</td>
+<td>docs/FDD.md</td>
+<td>Requisito Funcional</td>
+<td>GET /webhooks/:id/deliveries últimos 100</td>
+<td>TRANSCRICAO</td>
+<td>[09:34] Marcos</td>
+</tr>
+<tr>
+<td>FDD-CON-03</td>
+<td>docs/FDD.md</td>
+<td>Requisito Funcional</td>
+<td>PATCH e DELETE de webhook</td>
+<td>TRANSCRICAO</td>
+<td>[09:33] Bruno</td>
+</tr>
+<tr>
+<td>FDD-CON-04</td>
+<td>docs/FDD.md</td>
+<td>Requisito Funcional</td>
+<td>POST admin dead-letter replay</td>
+<td>TRANSCRICAO</td>
+<td>[09:18] Diego</td>
+</tr>
+<tr>
+<td>FDD-CON-05</td>
+<td>docs/FDD.md</td>
+<td>Requisito Funcional</td>
+<td>POST rotate-secret grace 24h</td>
+<td>TRANSCRICAO</td>
+<td>[09:21] Sofia</td>
+</tr>
+<tr>
+<td>FDD-CON-06</td>
+<td>docs/FDD.md</td>
+<td>Decisão</td>
+<td>Headers X-Event-Id, X-Signature, X-Timestamp, X-Webhook-Id</td>
+<td>TRANSCRICAO</td>
+<td>[09:44] Diego</td>
+</tr>
+<tr>
+<td>FDD-CON-07</td>
+<td>docs/FDD.md</td>
+<td>Decisão</td>
+<td>Payload order.status_changed sem items</td>
+<td>TRANSCRICAO</td>
+<td>[09:43] Diego</td>
+</tr>
+<tr>
+<td>FDD-ERR-01</td>
+<td>docs/FDD.md</td>
+<td>Decisão</td>
+<td>Códigos de erro prefixo WEBHOOK_</td>
+<td>TRANSCRICAO</td>
+<td>[09:29] Larissa</td>
+</tr>
+<tr>
+<td>FDD-ERR-02</td>
+<td>docs/FDD.md</td>
+<td>Decisão</td>
+<td>WEBHOOK_INVALID_URL para URL não HTTPS</td>
+<td>TRANSCRICAO</td>
+<td>[09:23] Sofia</td>
+</tr>
+<tr>
+<td>FDD-ERR-03</td>
+<td>docs/FDD.md</td>
+<td>Decisão</td>
+<td>Payload &gt;64KB erro sem truncar</td>
+<td>TRANSCRICAO</td>
+<td>[09:24] Larissa</td>
+</tr>
+<tr>
+<td>FDD-ERR-04</td>
+<td>docs/FDD.md</td>
+<td>Decisão</td>
+<td>Timeout HTTP outbound 10 segundos</td>
+<td>TRANSCRICAO</td>
+<td>[09:42] Diego</td>
+</tr>
+<tr>
+<td>FDD-OBS-01</td>
+<td>docs/FDD.md</td>
+<td>Decisão</td>
+<td>Logs estruturados via Pino existente</td>
+<td>TRANSCRICAO</td>
+<td>[09:29] Bruno</td>
+</tr>
+<tr>
+<td>FDD-OBS-02</td>
+<td>docs/FDD.md</td>
+<td>Decisão</td>
+<td>Redação de secrets no logger</td>
+<td>CODIGO</td>
+<td>src/shared/logger/index.ts</td>
+</tr>
+<tr>
+<td>FDD-INT-01</td>
+<td>docs/FDD.md</td>
+<td>Decisão</td>
+<td>Extensão de changeStatus com publishWebhookEvent</td>
+<td>CODIGO</td>
+<td>src/modules/orders/order.service.ts</td>
+</tr>
+<tr>
+<td>FDD-INT-02</td>
+<td>docs/FDD.md</td>
+<td>Decisão</td>
+<td>Transições OrderStatus definem eventos elegíveis</td>
+<td>CODIGO</td>
+<td>src/modules/orders/order.status.ts</td>
+</tr>
+<tr>
+<td>FDD-INT-03</td>
+<td>docs/FDD.md</td>
+<td>Decisão</td>
+<td>Erros WEBHOOK_ estendem AppError</td>
+<td>CODIGO</td>
+<td>src/shared/errors/app-error.ts</td>
+</tr>
+<tr>
+<td>FDD-INT-04</td>
+<td>docs/FDD.md</td>
+<td>Decisão</td>
+<td>requireRole ADMIN no replay DLQ</td>
+<td>CODIGO</td>
+<td>src/middlewares/auth.middleware.ts</td>
+</tr>
+<tr>
+<td>FDD-INT-05</td>
+<td>docs/FDD.md</td>
+<td>Decisão</td>
+<td>Serialização de erros via error middleware</td>
+<td>CODIGO</td>
+<td>src/middlewares/error.middleware.ts</td>
+</tr>
+<tr>
+<td>FDD-INT-06</td>
+<td>docs/FDD.md</td>
+<td>Decisão</td>
+<td>Registro de rotas em buildApiRouter</td>
+<td>CODIGO</td>
+<td>src/routes/index.ts</td>
+</tr>
+<tr>
+<td>FDD-RISK-01</td>
+<td>docs/FDD.md</td>
+<td>Risco</td>
+<td>Cliente sem deduplicação X-Event-Id</td>
+<td>TRANSCRICAO</td>
+<td>[09:25] Sofia</td>
+</tr>
+<tr>
+<td>FDD-RISK-02</td>
+<td>docs/FDD.md</td>
+<td>Risco</td>
+<td>Revisão segurança pré-deploy Sofia</td>
+<td>TRANSCRICAO</td>
+<td>[09:46] Sofia</td>
+</tr>
+<tr>
+<td>PRD-CTX-01</td>
+<td>docs/PRD.md</td>
+<td>Decisão</td>
+<td>Três clientes B2B exigem notificação (Atlas, MaxDistribuição, Nova Cargo)</td>
+<td>TRANSCRICAO</td>
+<td>[09:00] Marcos</td>
+</tr>
+<tr>
+<td>PRD-CTX-02</td>
+<td>docs/PRD.md</td>
+<td>Decisão</td>
+<td>Risco de churn Atlas sem feature até fim do trimestre</td>
+<td>TRANSCRICAO</td>
+<td>[09:00] Marcos</td>
+</tr>
+<tr>
+<td>PRD-MET-01</td>
+<td>docs/PRD.md</td>
+<td>Requisito Não Funcional</td>
+<td>Latência de entrega p95 &lt; 10 segundos</td>
+<td>TRANSCRICAO</td>
+<td>[09:02] Marcos</td>
+</tr>
+<tr>
+<td>PRD-MET-02</td>
+<td>docs/PRD.md</td>
+<td>Decisão</td>
+<td>Meta 3 clientes piloto no go-live</td>
+<td>TRANSCRICAO</td>
+<td>[09:00] Marcos</td>
+</tr>
+<tr>
+<td>PRD-MET-03</td>
+<td>docs/PRD.md</td>
+<td>Decisão</td>
+<td>Prazo fim de novembro, 3 sprints</td>
+<td>TRANSCRICAO</td>
+<td>[09:46] Larissa</td>
+</tr>
+<tr>
+<td>PRD-FR-01</td>
+<td>docs/PRD.md</td>
+<td>Requisito Funcional</td>
+<td>Cadastrar webhook POST com secret gerada</td>
+<td>TRANSCRICAO</td>
+<td>[09:31] Marcos</td>
+</tr>
+<tr>
+<td>PRD-FR-02</td>
+<td>docs/PRD.md</td>
+<td>Requisito Funcional</td>
+<td>Listar webhooks do customer GET</td>
+<td>TRANSCRICAO</td>
+<td>[09:33] Bruno</td>
+</tr>
+<tr>
+<td>PRD-FR-03</td>
+<td>docs/PRD.md</td>
+<td>Requisito Funcional</td>
+<td>Editar webhook PATCH</td>
+<td>TRANSCRICAO</td>
+<td>[09:33] Bruno</td>
+</tr>
+<tr>
+<td>PRD-FR-04</td>
+<td>docs/PRD.md</td>
+<td>Requisito Funcional</td>
+<td>Remover webhook DELETE</td>
+<td>TRANSCRICAO</td>
+<td>[09:33] Bruno</td>
+</tr>
+<tr>
+<td>PRD-FR-05</td>
+<td>docs/PRD.md</td>
+<td>Requisito Funcional</td>
+<td>Notificação outbound em mudança de status</td>
+<td>TRANSCRICAO</td>
+<td>[09:00] Marcos</td>
+</tr>
+<tr>
+<td>PRD-FR-06</td>
+<td>docs/PRD.md</td>
+<td>Requisito Funcional</td>
+<td>Filtrar eventos por status subscrito na inserção</td>
+<td>TRANSCRICAO</td>
+<td>[09:34] Bruno</td>
+</tr>
+<tr>
+<td>PRD-FR-07</td>
+<td>docs/PRD.md</td>
+<td>Requisito Funcional</td>
+<td>Histórico últimas 100 entregas</td>
+<td>TRANSCRICAO</td>
+<td>[09:34] Marcos</td>
+</tr>
+<tr>
+<td>PRD-FR-08</td>
+<td>docs/PRD.md</td>
+<td>Requisito Funcional</td>
+<td>Rotação de secret grace 24h</td>
+<td>TRANSCRICAO</td>
+<td>[09:21] Sofia</td>
+</tr>
+<tr>
+<td>PRD-FR-09</td>
+<td>docs/PRD.md</td>
+<td>Requisito Funcional</td>
+<td>Replay DLQ restrito a ADMIN com auditoria</td>
+<td>TRANSCRICAO</td>
+<td>[09:36] Sofia</td>
+</tr>
+<tr>
+<td>PRD-FR-10</td>
+<td>docs/PRD.md</td>
+<td>Requisito Funcional</td>
+<td>Payload enxuto sem items de linha</td>
+<td>TRANSCRICAO</td>
+<td>[09:43] Diego</td>
+</tr>
+<tr>
+<td>PRD-NFR-01</td>
+<td>docs/PRD.md</td>
+<td>Requisito Não Funcional</td>
+<td>Apenas URLs HTTPS no cadastro</td>
+<td>TRANSCRICAO</td>
+<td>[09:23] Sofia</td>
+</tr>
+<tr>
+<td>PRD-NFR-02</td>
+<td>docs/PRD.md</td>
+<td>Requisito Não Funcional</td>
+<td>HMAC-SHA256 secret por endpoint</td>
+<td>TRANSCRICAO</td>
+<td>[09:20] Sofia</td>
+</tr>
+<tr>
+<td>PRD-NFR-03</td>
+<td>docs/PRD.md</td>
+<td>Requisito Não Funcional</td>
+<td>At-least-once com X-Event-Id</td>
+<td>TRANSCRICAO</td>
+<td>[09:26] Larissa</td>
+</tr>
+<tr>
+<td>PRD-NFR-04</td>
+<td>docs/PRD.md</td>
+<td>Requisito Não Funcional</td>
+<td>5 tentativas backoff antes de DLQ</td>
+<td>TRANSCRICAO</td>
+<td>[09:17] Diego</td>
+</tr>
+<tr>
+<td>PRD-NFR-05</td>
+<td>docs/PRD.md</td>
+<td>Requisito Não Funcional</td>
+<td>Payload máximo 64KB sem truncar</td>
+<td>TRANSCRICAO</td>
+<td>[09:24] Larissa</td>
+</tr>
+<tr>
+<td>PRD-NFR-06</td>
+<td>docs/PRD.md</td>
+<td>Requisito Não Funcional</td>
+<td>CRUD autenticado; replay só ADMIN</td>
+<td>TRANSCRICAO</td>
+<td>[09:36] Sofia</td>
+</tr>
+<tr>
+<td>PRD-OUT-01</td>
+<td>docs/PRD.md</td>
+<td>Restrição</td>
+<td>Email de alerta fora do escopo v1</td>
+<td>TRANSCRICAO</td>
+<td>[09:37] Larissa</td>
+</tr>
+<tr>
+<td>PRD-OUT-02</td>
+<td>docs/PRD.md</td>
+<td>Restrição</td>
+<td>Dashboard visual fora do escopo</td>
+<td>TRANSCRICAO</td>
+<td>[09:40] Larissa</td>
+</tr>
+<tr>
+<td>PRD-OUT-03</td>
+<td>docs/PRD.md</td>
+<td>Restrição</td>
+<td>Webhooks inbound fora do escopo</td>
+<td>TRANSCRICAO</td>
+<td>[09:02] Sofia</td>
+</tr>
+<tr>
+<td>PRD-OUT-04</td>
+<td>docs/PRD.md</td>
+<td>Restrição</td>
+<td>Arquivamento outbox 30 dias fora do escopo</td>
+<td>TRANSCRICAO</td>
+<td>[09:08] Diego</td>
+</tr>
+<tr>
+<td>PRD-OUT-05</td>
+<td>docs/PRD.md</td>
+<td>Restrição</td>
+<td>Rate limiting de saída adiado</td>
+<td>TRANSCRICAO</td>
+<td>[09:39] Larissa</td>
+</tr>
+<tr>
+<td>PRD-RISK-01</td>
+<td>docs/PRD.md</td>
+<td>Risco</td>
+<td>Atraso no prazo — prob. média, impacto alto</td>
+<td>TRANSCRICAO</td>
+<td>[09:45] Marcos</td>
+</tr>
+<tr>
+<td>PRD-RISK-02</td>
+<td>docs/PRD.md</td>
+<td>Risco</td>
+<td>Cliente sem deduplicação — prob. média, impacto alto</td>
+<td>TRANSCRICAO</td>
+<td>[09:25] Sofia</td>
+</tr>
+<tr>
+<td>PRD-RISK-03</td>
+<td>docs/PRD.md</td>
+<td>Risco</td>
+<td>Endpoint offline prolongado — prob. média</td>
+<td>TRANSCRICAO</td>
+<td>[09:17] Marcos</td>
+</tr>
+<tr>
+<td>PRD-RISK-04</td>
+<td>docs/PRD.md</td>
+<td>Risco</td>
+<td>Vazamento de secret — prob. média, impacto alto</td>
+<td>TRANSCRICAO</td>
+<td>[09:22] Diego</td>
+</tr>
+<tr>
+<td>PRD-DEP-01</td>
+<td>docs/PRD.md</td>
+<td>Dependência</td>
+<td>Revisão segurança Sofia 2 dias úteis pré-deploy</td>
+<td>TRANSCRICAO</td>
+<td>[09:46] Sofia</td>
+</tr>
+<tr>
+<td>PRD-DEP-02</td>
+<td>docs/PRD.md</td>
+<td>Dependência</td>
+<td>Integração em changeStatus do módulo pedidos</td>
+<td>CODIGO</td>
+<td>src/modules/orders/order.service.ts</td>
+</tr>
+<tr>
+<td>PRD-ACC-01</td>
+<td>docs/PRD.md</td>
+<td>Decisão</td>
+<td>Validação E2E com cliente piloto Atlas</td>
+<td>TRANSCRICAO</td>
+<td>[09:45] Marcos</td>
+</tr>
+<tr>
+<td>PRD-TST-01</td>
+<td>docs/PRD.md</td>
+<td>Decisão</td>
+<td>Regressão em tests/orders.test.ts</td>
+<td>CODIGO</td>
+<td>tests/orders.test.ts</td>
+</tr>
+<tr>
+<td>PRD-NFR-07</td>
+<td>docs/PRD.md</td>
+<td>Requisito Não Funcional</td>
+<td>Timeout de 10 segundos por chamada HTTP outbound</td>
+<td>TRANSCRICAO</td>
+<td>[09:42] Diego</td>
+</tr>
+<tr>
+<td>PRD-NFR-08</td>
+<td>docs/PRD.md</td>
+<td>Requisito Não Funcional</td>
+<td>Consistência transacional status + outbox</td>
+<td>TRANSCRICAO</td>
+<td>[09:06] Diego</td>
+</tr>
+<tr>
+<td>PRD-NFR-09</td>
+<td>docs/PRD.md</td>
+<td>Requisito Não Funcional</td>
+<td>CRUD autenticado; replay DLQ só ADMIN</td>
+<td>TRANSCRICAO</td>
+<td>[09:36] Sofia</td>
+</tr>
+<tr>
+<td>PRD-NFR-10</td>
+<td>docs/PRD.md</td>
+<td>Requisito Não Funcional</td>
+<td>Códigos de erro prefixo WEBHOOK_</td>
+<td>TRANSCRICAO</td>
+<td>[09:29] Larissa</td>
+</tr>
+<tr>
+<td>PRD-RISK-05</td>
+<td>docs/PRD.md</td>
+<td>Risco</td>
+<td>Volume alto sem rate limit — prob. baixa, impacto médio</td>
+<td>TRANSCRICAO</td>
+<td>[09:39] Larissa</td>
+</tr>
+<tr>
+<td>FDD-ERR-05</td>
+<td>docs/FDD.md</td>
+<td>Decisão</td>
+<td>WEBHOOK_INACTIVE para webhook desativado</td>
+<td>TRANSCRICAO</td>
+<td>[09:33] Bruno</td>
+</tr>
+<tr>
+<td>FDD-ERR-06</td>
+<td>docs/FDD.md</td>
+<td>Decisão</td>
+<td>WEBHOOK_CUSTOMER_MISMATCH bloqueia acesso cruzado</td>
+<td>TRANSCRICAO</td>
+<td>[09:32] Larissa</td>
+</tr>
+<tr>
+<td>FDD-ERR-07</td>
+<td>docs/FDD.md</td>
+<td>Decisão</td>
+<td>WEBHOOK_DELIVERY_FAILED aciona retry ou DLQ</td>
+<td>TRANSCRICAO</td>
+<td>[09:15] Diego</td>
+</tr>
+<tr>
+<td>FDD-ERR-08</td>
+<td>docs/FDD.md</td>
+<td>Decisão</td>
+<td>WEBHOOK_DEAD_LETTER_NOT_FOUND no replay</td>
+<td>TRANSCRICAO</td>
+<td>[09:18] Diego</td>
+</tr>
+<tr>
+<td>FDD-ERR-09</td>
+<td>docs/FDD.md</td>
+<td>Decisão</td>
+<td>WEBHOOK_REPLAY_FORBIDDEN sem role ADMIN</td>
+<td>TRANSCRICAO</td>
+<td>[09:36] Sofia</td>
+</tr>
+<tr>
+<td>FDD-CON-08</td>
+<td>docs/FDD.md</td>
+<td>Requisito Funcional</td>
+<td>DELETE /api/webhooks/:id remove webhook</td>
+<td>TRANSCRICAO</td>
+<td>[09:33] Bruno</td>
+</tr>
+</tbody></table>
+
+    </main>
+  </div>
+</body>
+</html>

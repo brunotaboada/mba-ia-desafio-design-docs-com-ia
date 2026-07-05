@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ADR-001-outbox-no-mysql — Webhooks OMS</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="commit-banner">
+      <strong>source_commit:</strong>
+      <code id="source-commit">6ea0a8e2719f5df6b51bab35a082f9f8ea744a47</code>
+      <span class="generated-at">gerado em 2026-07-05T13:53:35.768Z</span>
+    </div>
+    <h1>Sistema de Webhooks — Design Docs</h1>
+  </header>
+  <div class="layout">
+    <nav class="sidebar">
+      <ul><li><a href="index.html">Início</a></li>
+<li data-group="ADRs"><a href="adrs/adr-001-outbox-no-mysql.html">ADR-001-OUTBOX-NO-MYSQL</a></li>
+<li data-group="ADRs"><a href="adrs/adr-002-worker-polling-processo-separado.html">ADR-002-WORKER-POLLING-PROCESSO-SEPARADO</a></li>
+<li data-group="ADRs"><a href="adrs/adr-003-retry-backoff-dlq.html">ADR-003-RETRY-BACKOFF-DLQ</a></li>
+<li data-group="ADRs"><a href="adrs/adr-004-hmac-sha256-secret-por-endpoint.html">ADR-004-HMAC-SHA256-SECRET-POR-ENDPOINT</a></li>
+<li data-group="ADRs"><a href="adrs/adr-005-at-least-once-x-event-id.html">ADR-005-AT-LEAST-ONCE-X-EVENT-ID</a></li>
+<li data-group="ADRs"><a href="adrs/adr-006-reuso-padroes-projeto.html">ADR-006-REUSO-PADROES-PROJETO</a></li>
+<li data-group="ADRs"><a href="adrs/adr-007-payload-snapshot-na-insercao.html">ADR-007-PAYLOAD-SNAPSHOT-NA-INSERCAO</a></li>
+<li data-group="Documentos"><a href="fdd.html">FDD</a></li>
+<li data-group="Documentos"><a href="prd.html">PRD</a></li>
+<li data-group="Documentos"><a href="rfc.html">RFC</a></li>
+<li data-group="Documentos"><a href="tracker.html">Tracker</a></li></ul>
+    </nav>
+    <main class="content prose">
+      <h1>ADR-001: Padrão Outbox no MySQL</h1>
+<p><strong>Status:</strong> Aceito<br><strong>Date:</strong> 07-11-2025<br><strong>Used by:</strong></p>
+<ul>
+<li><a href="./ADR-002-worker-polling-processo-separado.md">ADR-002: Worker em Processo Separado com Polling</a></li>
+<li><a href="./ADR-007-payload-snapshot-na-insercao.md">ADR-007: Snapshot de Payload na Inserção da Outbox</a></li>
+</ul>
+<h2>Contexto</h2>
+<p>Clientes B2B precisam ser notificados quando o status de pedidos muda na plataforma. Hoje dependem de polling periódico, o que torna integrações lentas e caras. A mudança de status no OMS ocorre dentro de uma transação de banco que persiste o pedido, o histórico de status e ajustes de estoque — operação já considerada pesada pelo time.</p>
+<p>Disparar notificações HTTP de forma síncrona dentro dessa transação acopla a disponibilidade e a latência de sistemas externos ao fluxo crítico de pedidos. Se o endpoint do cliente estiver lento ou indisponível, mudanças de status para outros pedidos seriam bloqueadas. Além disso, falha na entrega externa não pode justificar rollback de uma mudança de status já válida no negócio.</p>
+<p>O time precisa de um mecanismo que garanta que todo status commitado gere um registro de evento correspondente, sem adicionar infraestrutura desproporcional para um time pequeno.</p>
+<h2>Fatores de Decisão</h2>
+<ul>
+<li>Consistência transacional entre mudança de status e registro do evento de notificação.</li>
+<li>Isolamento do fluxo de pedidos em relação à latência e falhas de endpoints externos.</li>
+<li>Reuso do MySQL já em produção, sem novo broker de mensagens.</li>
+<li>Capacidade operacional limitada do time para manter infraestrutura adicional.</li>
+<li>Alinhamento com o padrão de identificadores UUID já adotado no projeto.</li>
+</ul>
+<h2>Alternativas Consideradas</h2>
+<ol>
+<li><strong>Padrão Transactional Outbox no MySQL</strong> — registrar evento na mesma transação da mudança de status; worker separado consome e entrega de forma assíncrona.</li>
+<li><strong>Disparo síncrono durante a transação de pedidos</strong> — chamar o endpoint do cliente antes do commit.</li>
+<li><strong>Fila externa com Redis Streams</strong> — publicar evento em broker dedicado após o commit.</li>
+</ol>
+<h2>Decisão</h2>
+<p><strong>Opção escolhida:</strong> Padrão Transactional Outbox no MySQL, porque garante atomicidade entre persistência do status e registro do evento usando infraestrutura existente, sem acoplar entregas HTTP ao caminho crítico de pedidos.</p>
+<p>O evento é persistido junto à mudança de status; se o registro falhar, toda a transação é revertida. Um processo worker dedicado lê eventos pendentes e executa as entregas outbound. O conteúdo do evento é capturado como snapshot no momento da inserção (ver ADR-007).</p>
+<h2>Prós e Contras das Opções</h2>
+<h3>Padrão Transactional Outbox no MySQL</h3>
+<ul>
+<li><strong>Prós:</strong> Consistência forte; sem nova infraestrutura; worker pode reiniciar sem perder eventos commitados; padrão maduro e bem documentado.</li>
+<li><strong>Contras:</strong> Crescimento de volume na store de eventos; latência mínima de entrega depende do mecanismo de consumo (ADR-002); acoplamento leve entre domínio de pedidos e publicação de eventos.</li>
+</ul>
+<h3>Disparo síncrono durante a transação de pedidos</h3>
+<ul>
+<li><strong>Prós:</strong> Entrega imediata em caso de sucesso; modelo mental simples.</li>
+<li><strong>Contras:</strong> Bloqueia transações por latência externa; indisponibilidade do cliente impacta todos os pedidos; rollback por falha de webhook é inaceitável no negócio.</li>
+</ul>
+<h3>Fila externa com Redis Streams</h3>
+<ul>
+<li><strong>Prós:</strong> Desacoplamento e throughput elevado; consumo reativo possível.</li>
+<li><strong>Contras:</strong> Exige Redis Cluster e operação adicional; overengineering para o volume e o tamanho do time; risco de inconsistência entre commit e publicação sem outbox transacional.</li>
+</ul>
+<h2>Consequências</h2>
+<h3>Positivas</h3>
+<ul>
+<li>Consistência forte entre mudança de status e registro do evento na mesma transação.</li>
+<li>Sem nova infraestrutura além do MySQL já em produção.</li>
+<li>Worker pode falhar e reiniciar sem perder eventos já commitados.</li>
+<li>Pré-requisito claro para consumo assíncrono (ADR-002) e snapshot de payload (ADR-007).</li>
+</ul>
+<h3>Negativas</h3>
+<ul>
+<li>Crescimento de volume na store de eventos outbound ao longo do tempo.</li>
+<li>Latência mínima de entrega depende do mecanismo de consumo adotado pelo worker (ADR-002).</li>
+<li>Acoplamento leve entre o domínio de pedidos e a publicação de eventos.</li>
+<li>Arquivamento de eventos entregues após período prolongado fica fora do escopo desta fase.</li>
+</ul>
+<h2>Referências</h2>
+<ul>
+<li>src/modules/orders/order.service.ts:126</li>
+<li>src/modules/orders/order.status.ts:1</li>
+<li>prisma/schema.prisma:74</li>
+</ul>
+
+    </main>
+  </div>
+</body>
+</html>

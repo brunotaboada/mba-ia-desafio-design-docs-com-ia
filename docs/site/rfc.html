@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RFC — Webhooks OMS</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="commit-banner">
+      <strong>source_commit:</strong>
+      <code id="source-commit">6ea0a8e2719f5df6b51bab35a082f9f8ea744a47</code>
+      <span class="generated-at">gerado em 2026-07-05T13:53:35.768Z</span>
+    </div>
+    <h1>Sistema de Webhooks — Design Docs</h1>
+  </header>
+  <div class="layout">
+    <nav class="sidebar">
+      <ul><li><a href="index.html">Início</a></li>
+<li data-group="ADRs"><a href="adrs/adr-001-outbox-no-mysql.html">ADR-001-OUTBOX-NO-MYSQL</a></li>
+<li data-group="ADRs"><a href="adrs/adr-002-worker-polling-processo-separado.html">ADR-002-WORKER-POLLING-PROCESSO-SEPARADO</a></li>
+<li data-group="ADRs"><a href="adrs/adr-003-retry-backoff-dlq.html">ADR-003-RETRY-BACKOFF-DLQ</a></li>
+<li data-group="ADRs"><a href="adrs/adr-004-hmac-sha256-secret-por-endpoint.html">ADR-004-HMAC-SHA256-SECRET-POR-ENDPOINT</a></li>
+<li data-group="ADRs"><a href="adrs/adr-005-at-least-once-x-event-id.html">ADR-005-AT-LEAST-ONCE-X-EVENT-ID</a></li>
+<li data-group="ADRs"><a href="adrs/adr-006-reuso-padroes-projeto.html">ADR-006-REUSO-PADROES-PROJETO</a></li>
+<li data-group="ADRs"><a href="adrs/adr-007-payload-snapshot-na-insercao.html">ADR-007-PAYLOAD-SNAPSHOT-NA-INSERCAO</a></li>
+<li data-group="Documentos"><a href="fdd.html">FDD</a></li>
+<li data-group="Documentos"><a href="prd.html">PRD</a></li>
+<li data-group="Documentos"><a href="rfc.html">RFC</a></li>
+<li data-group="Documentos"><a href="tracker.html">Tracker</a></li></ul>
+    </nav>
+    <main class="content prose">
+      <h1>RFC — Sistema de Webhooks de Notificação de Pedidos</h1>
+<h2>Metadados</h2>
+<table>
+<thead>
+<tr>
+<th>Campo</th>
+<th>Valor</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Autor</strong></td>
+<td>Larissa (Tech Lead)</td>
+</tr>
+<tr>
+<td><strong>Status</strong></td>
+<td>Em revisão</td>
+</tr>
+<tr>
+<td><strong>Data</strong></td>
+<td>07-11-2025</td>
+</tr>
+<tr>
+<td><strong>Revisores</strong></td>
+<td>Larissa (Tech Lead), Marcos (PM), Bruno (Engenharia — Pedidos), Diego (Engenharia — Plataforma), Sofia (Segurança)</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Resumo executivo (TL;DR)</h2>
+<p>Propomos um <strong>sistema outbound de webhooks</strong> acoplado à máquina de estados de pedidos do OMS: eventos registrados via <strong>Transactional Outbox no MySQL</strong> na mesma transação da mudança de status; <strong>worker em processo separado</strong> consome a outbox por polling (2s) e entrega HTTP com <strong>HMAC-SHA256</strong>, semântica <strong>at-least-once</strong> e identificador <strong><code>X-Event-Id</code></strong>; falhas seguem <strong>retry com backoff</strong> (5 tentativas) e <strong>dead letter queue</strong> com replay manual por ADMIN. Novo módulo <code>webhooks</code> reutiliza padrões existentes (erros tipados, Pino, middlewares). Detalhes de implementação, contratos HTTP e matriz de erros ficam no <a href="./FDD.md">FDD</a>; decisões fechadas estão nos <a href="./adrs/">ADRs</a>.</p>
+<hr>
+<h2>Contexto e problema</h2>
+<p>Três clientes B2B (Atlas Comercial, MaxDistribuição e Nova Cargo) exigem notificação quando o status de pedidos muda. Hoje dependem de polling em <code>GET /orders</code>, o que torna integrações lentas, caras e frágeas. Para o negócio, atraso na entrega representa risco de churn (Atlas citou migração para concorrente se não houver solução até fim do trimestre).</p>
+<p>O OMS em produção (Node.js + TypeScript + MySQL/Prisma) possui ciclo de vida de pedidos com transação em <code>changeStatus</code> — atualização de pedido, histórico e estoque — mas <strong>não possui</strong> mecanismo de notificação externa, filas ou webhooks. A feature deve preencher esse vácuo sem comprometer a consistência do fluxo crítico de pedidos.</p>
+<p>Requisito de negócio: latência percebida como &quot;tempo real&quot; = <strong>abaixo de 10 segundos</strong>. Escopo: <strong>apenas outbound</strong> (plataforma notifica clientes; não há webhooks inbound).</p>
+<hr>
+<h2>Proposta técnica</h2>
+<h3>Visão geral</h3>
+<p>A solução separa <strong>registro do evento</strong> (síncrono, transacional, dentro do domínio de pedidos) da <strong>entrega HTTP</strong> (assíncrona, resiliente, em processo dedicado).</p>
+<pre><code>┌─────────────┐     transação      ┌──────────────┐    polling 2s    ┌────────────┐
+│ Order       │ ─────────────────► │ Outbox       │ ───────────────► │ Worker     │
+│ changeStatus│   outbox + status  │ (MySQL)      │                  │ (processo  │
+└─────────────┘                    └──────────────┘                  │ separado)  │
+                                                                     └─────┬──────┘
+                                                                           │ HTTPS + HMAC
+                                                                           ▼
+                                                                     ┌────────────┐
+                                                                     │ Endpoint   │
+                                                                     │ do cliente │
+                                                                     └────────────┘
+</code></pre>
+<h3>Componentes principais</h3>
+<ol>
+<li><p><strong>Publicação transacional</strong> — Na mudança de status, inserir evento na outbox dentro da mesma transação que persiste pedido e histórico. Rollback da transação descarta o evento. Filtro por status subscrito ocorre na inserção (<a href="./adrs/ADR-007-payload-snapshot-na-insercao.md">ADR-007</a>).</p>
+</li>
+<li><p><strong>Consumo assíncrono</strong> — Worker Node.js independente da API, polling a cada 2s, batch de pendentes, timeout HTTP de 10s (<a href="./adrs/ADR-002-worker-polling-processo-separado.md">ADR-002</a>).</p>
+</li>
+<li><p><strong>Resiliência de entrega</strong> — Cinco tentativas com backoff (1m → 5m → 30m → 2h → 12h); após esgotar, evento vai para dead letter; replay manual restrito a ADMIN (<a href="./adrs/ADR-003-retry-backoff-dlq.md">ADR-003</a>).</p>
+</li>
+<li><p><strong>Segurança</strong> — HMAC-SHA256 no corpo, secret por endpoint, rotação com grace de 24h, TLS obrigatório (<a href="./adrs/ADR-004-hmac-sha256-secret-por-endpoint.md">ADR-004</a>).</p>
+</li>
+<li><p><strong>Semântica de entrega</strong> — At-least-once com <code>X-Event-Id</code>; deduplicação no cliente (<a href="./adrs/ADR-005-at-least-once-x-event-id.md">ADR-005</a>).</p>
+</li>
+<li><p><strong>Organização do código</strong> — Módulo <code>src/modules/webhooks</code> seguindo convenções do OMS; integração mínima em <code>changeStatus</code> (<a href="./adrs/ADR-006-reuso-padroes-projeto.md">ADR-006</a>).</p>
+</li>
+</ol>
+<h3>API de configuração e operação</h3>
+<p>A plataforma expõe endpoints autenticados para CRUD de webhooks por <code>customer_id</code>, histórico de entregas e rotação de secret. Operações administrativas (replay de DLQ) exigem role ADMIN. Contratos, payloads e códigos de erro serão especificados no FDD — não neste documento.</p>
+<h3>O que fica fora desta proposta</h3>
+<ul>
+<li>Email de alerta ao cliente quando webhook falha repetidamente (fase futura).</li>
+<li>Dashboard visual / painel frontend (time separado).</li>
+<li>Arquivamento automático de eventos entregues após 30 dias.</li>
+<li>Rate limiting de saída por cliente (ver questões em aberto).</li>
+</ul>
+<hr>
+<h2>Alternativas consideradas</h2>
+<h3>1. Disparo síncrono no fluxo de mudança de status</h3>
+<p><strong>Descrição:</strong> Chamar o endpoint do cliente dentro da transação ou imediatamente após <code>changeStatus</code>, antes de retornar ao chamador da API.</p>
+<p><strong>Por que foi descartada:</strong> A transação de pedidos já é pesada (pedido, histórico, estoque). Latência ou indisponibilidade do cliente bloquearia mudanças de status para outros pedidos. Falha no webhook não pode causar rollback de status válido.</p>
+<p><strong>Trade-off aceito:</strong> Maior latência de entrega (assíncrona via outbox) em troca de isolamento e consistência do domínio de pedidos.</p>
+<h3>2. Fila externa (Redis Streams / broker dedicado)</h3>
+<p><strong>Descrição:</strong> Publicar eventos em Redis ou message broker após commit da transação de pedidos.</p>
+<p><strong>Por que foi descartada:</strong> Exige subir e operar infraestrutura adicional (Redis Cluster) para um time pequeno. Risco de inconsistência entre commit e publicação sem padrão outbox transacional.</p>
+<p><strong>Trade-off aceito:</strong> Polling no MySQL existente e latência mínima de ~2s em troca de zero nova infraestrutura e consistência transacional nativa.</p>
+<h3>3. Trigger MySQL para notificar o worker</h3>
+<p><strong>Descrição:</strong> Usar triggers no banco para acionar consumo imediato em vez de polling periódico.</p>
+<p><strong>Por que foi descartada:</strong> MySQL não possui mecanismo nativo equivalente ao NOTIFY/LISTEN do PostgreSQL. Trigger só executa SQL; avisar processo externo exigiria soluções frágeis.</p>
+<p><strong>Trade-off aceito:</strong> Polling de 2s atende SLA de &lt;10s com simplicidade operacional.</p>
+<h3>4. Worker embutido no processo da API</h3>
+<p><strong>Descrição:</strong> Executar o consumo da outbox no mesmo processo Node.js da API HTTP.</p>
+<p><strong>Por que foi descartada:</strong> Reinício ou deploy da API interromperia entregas de webhook.</p>
+<p><strong>Trade-off aceito:</strong> Processo operacional adicional em troca de resiliência a deploys da API.</p>
+<hr>
+<h2>Questões em aberto</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Questão</th>
+<th>Contexto na reunião</th>
+<th>Proposta inicial</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td><strong>Rate limiting de envio por cliente</strong></td>
+<td>Se 50 pedidos mudam de status em um minuto, bombardeamos o cliente?</td>
+<td>Observar em produção e implementar se virar problema ([09:38] Diego, [09:39] Larissa).</td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>Escalar para múltiplos workers</strong></td>
+<td>Single-worker garante ordenação por <code>created_at</code>; múltiplos workers perdem ordering global.</td>
+<td>Adiar; documentar limitação; futuro: particionar por <code>order_id</code> ou lock pessimista ([09:12]–[09:13] Diego).</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>Endurecer roles no CRUD de webhooks</strong></td>
+<td>Hoje qualquer usuário autenticado pode configurar webhooks.</td>
+<td>Manter como está na v1; revisitar em fase futura ([09:36]–[09:37] Sofia).</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Impacto e riscos</h2>
+<h3>Impacto na arquitetura existente</h3>
+<table>
+<thead>
+<tr>
+<th>Área</th>
+<th>Impacto</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Domínio de pedidos</strong></td>
+<td><code>changeStatus</code> ganha chamada de publicação de evento na transação ativa — único ponto de acoplamento crítico.</td>
+</tr>
+<tr>
+<td><strong>Persistência</strong></td>
+<td>Novas tabelas: configuração de webhooks, outbox, dead letter, log de entregas (detalhes no FDD).</td>
+</tr>
+<tr>
+<td><strong>Runtime</strong></td>
+<td>Novo processo worker além da API (<code>npm run worker</code>).</td>
+</tr>
+<tr>
+<td><strong>Segurança</strong></td>
+<td>Geração e rotação de secrets; revisão dedicada de Sofia antes do deploy (2 dias úteis).</td>
+</tr>
+<tr>
+<td><strong>Clientes integradores</strong></td>
+<td>Devem implementar verificação HMAC e deduplicação por <code>X-Event-Id</code>; documentação no portal.</td>
+</tr>
+</tbody></table>
+<h3>Riscos</h3>
+<table>
+<thead>
+<tr>
+<th>Risco</th>
+<th>Probabilidade</th>
+<th>Impacto</th>
+<th>Mitigação</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Cliente não implementa deduplicação</td>
+<td>Média</td>
+<td>Alto — processamento duplicado de status</td>
+<td>Documentação destacada no portal; exemplos no FDD.</td>
+</tr>
+<tr>
+<td>Indisponibilidade do cliente &gt; ~15h</td>
+<td>Baixa</td>
+<td>Médio — evento vai para DLQ</td>
+<td>Replay manual por ADMIN; cliente consulta histórico de entregas.</td>
+</tr>
+<tr>
+<td>Crescimento da tabela outbox</td>
+<td>Média</td>
+<td>Médio — performance de leitura</td>
+<td>Índices em status e <code>created_at</code>; arquivamento em fase futura.</td>
+</tr>
+<tr>
+<td>Vazamento de secret no lado do cliente</td>
+<td>Média</td>
+<td>Alto — falsificação de eventos</td>
+<td>Secret por endpoint; rotação com grace 24h; TLS obrigatório.</td>
+</tr>
+<tr>
+<td>Atraso na revisão de segurança</td>
+<td>Baixa</td>
+<td>Médio — slip de prazo (3 sprints)</td>
+<td>Reservar 2 dias úteis de Sofia antes do deploy ([09:46]).</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Decisões relacionadas</h2>
+<p>Decisões arquiteturais fechadas na reunião estão formalizadas nos ADRs abaixo. Este RFC consolida a proposta; cada ADR registra o contexto, alternativas e consequências da decisão pontual.</p>
+<table>
+<thead>
+<tr>
+<th>ADR</th>
+<th>Decisão</th>
+<th>Link</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>ADR-001</td>
+<td>Padrão Outbox no MySQL</td>
+<td><a href="./adrs/ADR-001-outbox-no-mysql.md">ADR-001-outbox-no-mysql.md</a></td>
+</tr>
+<tr>
+<td>ADR-002</td>
+<td>Worker em processo separado com polling</td>
+<td><a href="./adrs/ADR-002-worker-polling-processo-separado.md">ADR-002-worker-polling-processo-separado.md</a></td>
+</tr>
+<tr>
+<td>ADR-003</td>
+<td>Retry com backoff e DLQ</td>
+<td><a href="./adrs/ADR-003-retry-backoff-dlq.md">ADR-003-retry-backoff-dlq.md</a></td>
+</tr>
+<tr>
+<td>ADR-004</td>
+<td>HMAC-SHA256 com secret por endpoint</td>
+<td><a href="./adrs/ADR-004-hmac-sha256-secret-por-endpoint.md">ADR-004-hmac-sha256-secret-por-endpoint.md</a></td>
+</tr>
+<tr>
+<td>ADR-005</td>
+<td>At-least-once com X-Event-Id</td>
+<td><a href="./adrs/ADR-005-at-least-once-x-event-id.md">ADR-005-at-least-once-x-event-id.md</a></td>
+</tr>
+<tr>
+<td>ADR-006</td>
+<td>Reuso dos padrões do projeto</td>
+<td><a href="./adrs/ADR-006-reuso-padroes-projeto.md">ADR-006-reuso-padroes-projeto.md</a></td>
+</tr>
+<tr>
+<td>ADR-007</td>
+<td>Snapshot de payload na inserção</td>
+<td><a href="./adrs/ADR-007-payload-snapshot-na-insercao.md">ADR-007-payload-snapshot-na-insercao.md</a></td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Próximos passos</h2>
+<ol>
+<li>Revisão deste RFC pelos revisores listados nos metadados.</li>
+<li>Produção do <a href="./FDD.md">FDD</a> com contratos HTTP, fluxos detalhados e integração com código existente.</li>
+<li>Consolidação do <a href="./PRD.md">PRD</a> com requisitos de negócio e métricas.</li>
+<li>Início da implementação após aprovação do RFC e FDD.</li>
+</ol>
+
+    </main>
+  </div>
+</body>
+</html>

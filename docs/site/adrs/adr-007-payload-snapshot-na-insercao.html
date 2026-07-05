@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ADR-007-payload-snapshot-na-insercao — Webhooks OMS</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="commit-banner">
+      <strong>source_commit:</strong>
+      <code id="source-commit">6ea0a8e2719f5df6b51bab35a082f9f8ea744a47</code>
+      <span class="generated-at">gerado em 2026-07-05T13:53:35.768Z</span>
+    </div>
+    <h1>Sistema de Webhooks — Design Docs</h1>
+  </header>
+  <div class="layout">
+    <nav class="sidebar">
+      <ul><li><a href="index.html">Início</a></li>
+<li data-group="ADRs"><a href="adrs/adr-001-outbox-no-mysql.html">ADR-001-OUTBOX-NO-MYSQL</a></li>
+<li data-group="ADRs"><a href="adrs/adr-002-worker-polling-processo-separado.html">ADR-002-WORKER-POLLING-PROCESSO-SEPARADO</a></li>
+<li data-group="ADRs"><a href="adrs/adr-003-retry-backoff-dlq.html">ADR-003-RETRY-BACKOFF-DLQ</a></li>
+<li data-group="ADRs"><a href="adrs/adr-004-hmac-sha256-secret-por-endpoint.html">ADR-004-HMAC-SHA256-SECRET-POR-ENDPOINT</a></li>
+<li data-group="ADRs"><a href="adrs/adr-005-at-least-once-x-event-id.html">ADR-005-AT-LEAST-ONCE-X-EVENT-ID</a></li>
+<li data-group="ADRs"><a href="adrs/adr-006-reuso-padroes-projeto.html">ADR-006-REUSO-PADROES-PROJETO</a></li>
+<li data-group="ADRs"><a href="adrs/adr-007-payload-snapshot-na-insercao.html">ADR-007-PAYLOAD-SNAPSHOT-NA-INSERCAO</a></li>
+<li data-group="Documentos"><a href="fdd.html">FDD</a></li>
+<li data-group="Documentos"><a href="prd.html">PRD</a></li>
+<li data-group="Documentos"><a href="rfc.html">RFC</a></li>
+<li data-group="Documentos"><a href="tracker.html">Tracker</a></li></ul>
+    </nav>
+    <main class="content prose">
+      <h1>ADR-007: Snapshot de Payload na Inserção da Outbox</h1>
+<p><strong>Status:</strong> Aceito<br><strong>Date:</strong> 07-11-2025<br><strong>Depends on:</strong> <a href="./ADR-001-outbox-no-mysql.md">ADR-001: Padrão Outbox no MySQL</a><br><strong>Related to:</strong> <a href="./ADR-004-hmac-sha256-secret-por-endpoint.md">ADR-004: Autenticação HMAC-SHA256 com Secret por Endpoint</a></p>
+<h2>Contexto</h2>
+<p>Eventos na outbox (ADR-001) precisam de conteúdo para entrega HTTP aos clientes. Uma abordagem alternativa seria montar o payload no momento do envio, consultando novamente o estado atual do pedido no banco.</p>
+<p>Porém o pedido pode sofrer alterações após a transição de status — campos auxiliares, ajustes futuros — gerando inconsistência entre o instante do evento de negócio e o conteúdo entregue ao cliente. O time também precisa evitar inserir eventos para combinações pedido-status sem assinantes configurados.</p>
+<h2>Fatores de Decisão</h2>
+<ul>
+<li>Fidelidade do payload ao instante da transição de status.</li>
+<li>Simplicidade do caminho crítico do worker de entrega.</li>
+<li>Tamanho enxuto do evento para respeitar limites de segurança (ADR-004).</li>
+<li>Eficiência de armazenamento na store de eventos.</li>
+<li>Filtragem antecipada por status subscrito por cliente.</li>
+</ul>
+<h2>Alternativas Consideradas</h2>
+<ol>
+<li><strong>Snapshot JSON persistido na inserção</strong> — payload renderizado na transação, incluindo metadados do pedido sem itens de linha; filtro de assinatura aplicado antes de inserir.</li>
+<li><strong>Renderização lazy no envio</strong> — worker consulta pedido atual e monta payload na hora da entrega.</li>
+<li><strong>Inserção incondicional com filtro no worker</strong> — todas as transições geram linha na store; worker descarta não assinados.</li>
+</ol>
+<h2>Decisão</h2>
+<p><strong>Opção escolhida:</strong> Snapshot JSON persistido no momento da inserção na outbox, porque garante que o evento reflete o estado do pedido no instante da transição, independentemente de alterações posteriores.</p>
+<p>O payload inclui identificador de evento, tipo de evento de mudança de status, timestamp ISO 8601, identificadores e número do pedido, status origem e destino, cliente e valor total — sem itens de linha, mantendo envelope enxuto. Cliente que necessitar detalhes complementares consulta API de pedidos existente. Se nenhum endpoint do cliente assina o status destino, nenhuma linha é inserida na store.</p>
+<h2>Prós e Contras das Opções</h2>
+<h3>Snapshot na inserção</h3>
+<ul>
+<li><strong>Prós:</strong> Semântica clara de instante do evento; worker lê e envia sem consultas adicionais; filtro na inserção economiza armazenamento.</li>
+<li><strong>Contras:</strong> Duplicação de payload em store ativa e dead letter; evolução de formato exige versionamento ou migração de pendentes.</li>
+</ul>
+<h3>Renderização lazy no envio</h3>
+<ul>
+<li><strong>Prós:</strong> Payload sempre reflete estado mais recente do pedido.</li>
+<li><strong>Contras:</strong> Estado recente pode divergir do instante da transição; consultas extras no worker; semântica ambígua para o cliente.</li>
+</ul>
+<h3>Inserção incondicional com filtro no worker</h3>
+<ul>
+<li><strong>Prós:</strong> Lógica de filtro concentrada no consumidor.</li>
+<li><strong>Contras:</strong> Linhas desnecessárias na store; I/O e armazenamento desperdiçados; processamento de eventos sem destinatário.</li>
+</ul>
+<h2>Consequências</h2>
+<h3>Positivas</h3>
+<ul>
+<li>Semântica clara: payload reflete o instante exato da transição de status.</li>
+<li>Worker simplificado — lê payload pronto, assina e envia sem consultas adicionais ao pedido.</li>
+<li>Filtro de status subscrito na inserção economiza armazenamento e I/O na store de eventos.</li>
+<li>Payload enxuto (sem itens de linha) respeita limite de 64KB definido em ADR-004.</li>
+</ul>
+<h3>Negativas</h3>
+<ul>
+<li>Payload duplicado na store ativa e na dead letter em caso de falha permanente.</li>
+<li>Evolução do formato exige versionamento ou migração de eventos ainda pendentes.</li>
+<li>Cliente que precisa de detalhes completos deve consultar API de pedidos separadamente.</li>
+</ul>
+<h2>Referências</h2>
+<ul>
+<li>src/modules/orders/order.service.ts:158</li>
+<li>src/modules/orders/order.status.ts:3</li>
+<li>prisma/schema.prisma:74</li>
+</ul>
+
+    </main>
+  </div>
+</body>
+</html>
