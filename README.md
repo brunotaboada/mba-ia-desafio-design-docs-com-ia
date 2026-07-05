@@ -44,6 +44,8 @@ Interação com a IA: prompts **dirigidos** (com trechos da transcrição e path
 
 ## Prompts customizados
 
+Abaixo estão os prompts que mais impactaram a qualidade da entrega — adaptados a partir dos prompts do curso, mas com restrições explícitas deste repositório (transcrição, rubrica do `ENUNCIADO.md`, paths reais em `src/`). O segundo prompt genérico de “revisar contra rubrica” foi substituído por prompts **por artefato**, que é como o trabalho foi conduzido na prática.
+
 ### 1. Contextualização inicial (mapa transcrição + código)
 
 ```
@@ -60,21 +62,84 @@ Produza um mapa estruturado com:
 Não invente requisitos. Se não houver origem na transcrição ou no código, marque como "sem fonte".
 ```
 
-### 2. Alinhamento do FDD à rubrica do desafio
+### 2. ADR por decisão da reunião (com evidência e gancho no código)
 
 ```
-Revise docs/FDD.md contra a rubrica literal do ENUNCIADO.md (requisito 3 e critérios de aceite).
+Para a decisão "{nome da decisão}" discutida em TRANSCRICAO.md em [{hh:mm}] {falante},
+gere docs/adrs/ADR-{NNN}-{slug-kebab}.md com as seções da rubrica do ENUNCIADO:
+Status, Contexto, Decisão, Alternativas Consideradas, Consequências (### Positivas / ### Negativas).
 
-Garanta:
-- Seções obrigatórias com os títulos exatos da rubrica
-- "Integração com o sistema existente" com ≥4 caminhos reais em src/ ou prisma/
-- Matriz de erros com prefixo WEBHOOK_
-- ≥4 endpoints HTTP com request/response de exemplo e status codes
-- Observabilidade com métricas, logs e tracing
+Regras:
+- Contexto: problema de negócio + restrição operacional do time, citando o timestamp exato
+- Alternativas: máximo 3; pelo menos 1 deve ter sido mencionada ou descartada na reunião
+- Decisão: 1 parágrafo objetivo, sem código nem contratos HTTP (isso fica no FDD)
+- Consequências: trade-off explícito (o que ganhamos vs o que aceitamos perder)
+- Referenciar ≥1 arquivo real do repositório (ex: changeStatus em order.service.ts,
+  AppError em shared/errors, requireRole em auth.middleware)
+- Títulos das seções em português, literais da rubrica — não usar "## Context" / "## Decision"
 
-Remova qualquer seção meta (discrepâncias curso vs rubrica, notas ao avaliador).
-Não duplique o nível de detalhe do RFC.
+Ao finalizar os 7 ADRs, cobrir as 6 decisões principais + snapshot de payload (ADR-007).
 ```
+
+### 3. FDD acionável a partir dos ADRs e do código base
+
+```
+Com base nos ADRs 001–007, no RFC e no mapa de contextualização, produza docs/FDD.md.
+
+Inclua obrigatoriamente:
+- Contratos HTTP: CRUD de webhooks, histórico de entregas, replay de DLQ e DELETE /api/webhooks/:id
+  (cada um com auth, request/response JSON de exemplo e status codes)
+- Fluxo outbox: changeStatus → publishWebhookEvent(tx) na mesma $transaction → worker poll → POST com HMAC
+- Matriz de erros com prefixo WEBHOOK_ (mapear para AppError / http-errors existentes)
+- Estratégias de resiliência: retry com backoff, DLQ, replay ADMIN, rotação de secret (grace 24h)
+- Seção "Integração com o sistema existente": caminhos reais em src/ e prisma/ que existem hoje;
+  marque src/modules/webhooks/, webhook.errors.ts e src/worker.ts como "(a criar na implementação)"
+- Observabilidade: métricas (latência p95, taxa de sucesso, backlog outbox/DLQ), logs Pino, tracing
+
+Não inclua seções meta (notas ao avaliador, discrepâncias curso vs rubrica).
+Não repita o nível de detalhe do RFC. Toda afirmação deve apontar para ADR, transcrição ou arquivo real.
+```
+
+### 4. Tracker incremental (rastreabilidade por documento)
+
+```
+Para cada item novo em {docs/PRD.md | docs/RFC.md | docs/FDD.md | docs/adrs/ADR-NNN-*.md},
+adicione linhas em docs/TRACKER.md no formato:
+
+| ID | Documento | Tipo | Conteúdo (resumo) | Fonte | Localização |
+
+Regras:
+- IDs únicos: PRD-FR-01, RFC-ALT-02, FDD-CON-03, ADR-003-DEC-01, FDD-ERR-05, etc.
+- Fonte TRANSCRICAO → localização = [hh:mm] Nome (buscar na TRANSCRICAO.md, não inventar)
+- Fonte CODIGO → localização = caminho exato (ex: src/modules/orders/order.service.ts)
+- Uma linha por requisito, decisão, alternativa descartada, endpoint, erro WEBHOOK_* e ponto de integração
+- Itens sem origem verificável: corrigir o documento ou não registrar no Tracker
+
+Meta: ≥80% dos itens dos docs com linha correspondente; ao final, 165 linhas e 20 com Fonte=CODIGO.
+```
+
+### 5. Atualização dirigida por diff (Parte 2 — versionado em `scripts/docs/prompts/update-doc.txt`)
+
+Prompt usado pelo `npm run docs:update` quando há `OPENAI_API_KEY`; sem chave, o mesmo contrato
+é honrado pelo atualizador determinístico em `scripts/docs/lib/ai-update.ts`.
+
+```
+Você é um editor técnico de design docs. O código da aplicação mudou; atualize SOMENTE o documento
+indicado para refletir o diff, usando o Tracker como guia de rastreabilidade.
+
+Regras:
+- Preserve títulos, estrutura e tom do documento.
+- Não remova conteúdo não relacionado ao diff.
+- Não invente requisitos fora do que o diff implica.
+- Se o diff adiciona a transição SHIPPED → CANCELLED em order.status.ts:
+  - O FDD deve mencionar essa transição em fluxos, integração e exemplos de payload.
+  - ADRs que referenciam order.status.ts devem refletir a nova transição.
+  - Nenhum trecho pode afirmar que SHIPPED só transiciona para DELIVERED.
+- Retorne o markdown completo do arquivo atualizado.
+```
+
+O prompt completo enviado à API também inclui o `git diff`, trechos do Tracker com `Fonte=CODIGO`
+e o markdown atual do arquivo — ver `scripts/docs/lib/ai-update.ts`.
 
 ---
 
