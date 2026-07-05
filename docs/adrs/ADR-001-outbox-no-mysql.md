@@ -2,7 +2,9 @@
 
 **Status:** Aceito  
 **Date:** 07-11-2025  
-**ADRs Relacionados:** ADR-002, ADR-007
+**Used by:**
+- [ADR-002: Worker em Processo Separado com Polling](./ADR-002-worker-polling-processo-separado.md)
+- [ADR-007: Snapshot de Payload na Inserção da Outbox](./ADR-007-payload-snapshot-na-insercao.md)
 
 ## Contexto e Declaração do Problema
 

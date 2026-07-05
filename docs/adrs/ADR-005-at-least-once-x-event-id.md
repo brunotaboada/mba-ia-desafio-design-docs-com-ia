@@ -2,7 +2,9 @@
 
 **Status:** Aceito  
 **Date:** 07-11-2025  
-**ADRs Relacionados:** ADR-003, ADR-004
+**Related to:**
+- [ADR-003: Política de Retry com Backoff Exponencial e DLQ](./ADR-003-retry-backoff-dlq.md)
+- [ADR-004: Autenticação HMAC-SHA256 com Secret por Endpoint](./ADR-004-hmac-sha256-secret-por-endpoint.md)
 
 ## Contexto e Declaração do Problema
 

@@ -2,7 +2,8 @@
 
 **Status:** Aceito  
 **Date:** 07-11-2025  
-**ADRs Relacionados:** ADR-001
+**Depends on:** [ADR-001: Padrão Outbox no MySQL](./ADR-001-outbox-no-mysql.md)  
+**Related to:** [ADR-004: Autenticação HMAC-SHA256 com Secret por Endpoint](./ADR-004-hmac-sha256-secret-por-endpoint.md)
 
 ## Contexto e Declaração do Problema
 

@@ -2,7 +2,9 @@
 
 **Status:** Aceito  
 **Date:** 07-11-2025  
-**ADRs Relacionados:** ADR-005
+**Related to:**
+- [ADR-005: Garantia At-Least-Once com Identificador de Evento](./ADR-005-at-least-once-x-event-id.md)
+- [ADR-007: Snapshot de Payload na Inserção da Outbox](./ADR-007-payload-snapshot-na-insercao.md)
 
 ## Contexto e Declaração do Problema
 

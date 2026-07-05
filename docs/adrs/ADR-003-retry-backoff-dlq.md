@@ -2,7 +2,8 @@
 
 **Status:** Aceito  
 **Date:** 07-11-2025  
-**ADRs Relacionados:** ADR-002, ADR-005
+**Depends on:** [ADR-002: Worker em Processo Separado com Polling](./ADR-002-worker-polling-processo-separado.md)  
+**Related to:** [ADR-005: Garantia At-Least-Once com Identificador de Evento](./ADR-005-at-least-once-x-event-id.md)
 
 ## Contexto e Declaração do Problema
 

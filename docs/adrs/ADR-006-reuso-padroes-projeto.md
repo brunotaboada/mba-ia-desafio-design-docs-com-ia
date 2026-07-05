@@ -2,7 +2,9 @@
 
 **Status:** Aceito  
 **Date:** 07-11-2025  
-**ADRs Relacionados:** ADR-001, ADR-002
+**Related to:**
+- [ADR-001: Padrão Outbox no MySQL](./ADR-001-outbox-no-mysql.md)
+- [ADR-002: Worker em Processo Separado com Polling](./ADR-002-worker-polling-processo-separado.md)
 
 ## Contexto e Declaração do Problema
 

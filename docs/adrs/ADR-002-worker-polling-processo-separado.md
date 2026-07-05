@@ -2,7 +2,9 @@
 
 **Status:** Aceito  
 **Date:** 07-11-2025  
-**ADRs Relacionados:** ADR-001, ADR-003
+**Depends on:** [ADR-001: Padrão Outbox no MySQL](./ADR-001-outbox-no-mysql.md)  
+**Used by:** [ADR-003: Política de Retry com Backoff Exponencial e DLQ](./ADR-003-retry-backoff-dlq.md)  
+**Related to:** [ADR-006: Reuso dos Padrões Existentes do Projeto](./ADR-006-reuso-padroes-projeto.md)
 
 ## Contexto e Declaração do Problema
 
