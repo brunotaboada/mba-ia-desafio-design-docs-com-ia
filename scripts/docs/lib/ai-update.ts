@@ -93,7 +93,9 @@ function applyDeterministicUpdates(ctx: UpdateContext): string {
       updated = updated.replace(integrationNeedle, integrationReplacement);
 
       const fluxoAnchor = '3. Valida transição (`order.status.ts`), estoque, atualiza pedido e histórico.';
-      const fluxoInsert = `${fluxoAnchor}\n   - Transições elegíveis incluem cancelamento pós-envio (**`SHIPPED → CANCELLED`**), com reposição de estoque via `shouldReplenishStock`.`;
+      const fluxoInsert =
+        fluxoAnchor +
+        '\n   - Transições elegíveis incluem cancelamento pós-envio (**`SHIPPED → CANCELLED`**), com reposição de estoque via `shouldReplenishStock`.';
       if (!updated.includes('cancelamento pós-envio')) {
         updated = updated.replace(fluxoAnchor, fluxoInsert);
       }
@@ -110,11 +112,15 @@ function applyDeterministicUpdates(ctx: UpdateContext): string {
     if (!updated.includes('SHIPPED → CANCELLED')) {
       const decisionNeedle =
         'O payload inclui identificador de evento, tipo de evento de mudança de status, timestamp ISO 8601, identificadores e número do pedido, status origem e destino, cliente e valor total — sem itens de linha, mantendo envelope enxuto.';
-      const decisionInsert = `${decisionNeedle} Transições definidas em \`order.status.ts\` incluem **`SHIPPED → CANCELLED`**; se o webhook assina \`CANCELLED\`, o snapshot registra origem \`SHIPPED\` e destino \`CANCELLED\`.`;
+      const decisionInsert =
+        decisionNeedle +
+        ' Transições definidas em `order.status.ts` incluem **`SHIPPED → CANCELLED`**; se o webhook assina `CANCELLED`, o snapshot registra origem `SHIPPED` e destino `CANCELLED`.';
       updated = updated.replace(decisionNeedle, decisionInsert);
 
       const ctxNeedle = 'Porém o pedido pode sofrer alterações após a transição de status';
-      const ctxInsert = `A máquina de estados em \`order.status.ts\` governa quais pares origem/destino geram evento (ex.: **\`SHIPPED → DELIVERED\`** e **\`SHIPPED → CANCELLED\`**). Porém o pedido pode sofrer alterações após a transição de status`;
+      const ctxInsert =
+        'A máquina de estados em `order.status.ts` governa quais pares origem/destino geram evento (ex.: **`SHIPPED → DELIVERED`** e **`SHIPPED → CANCELLED`**). ' +
+        ctxNeedle;
       if (!updated.includes('SHIPPED → DELIVERED')) {
         updated = updated.replace(ctxNeedle, ctxInsert);
       }
