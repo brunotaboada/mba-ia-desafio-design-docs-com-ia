@@ -123,3 +123,37 @@ Mapeamento de itens documentados à origem na transcrição (`TRANSCRICAO.md`) o
 | FDD-INT-06 | docs/FDD.md | Decisão | Registro de rotas em buildApiRouter | CODIGO | src/routes/index.ts |
 | FDD-RISK-01 | docs/FDD.md | Risco | Cliente sem deduplicação X-Event-Id | TRANSCRICAO | [09:25] Sofia |
 | FDD-RISK-02 | docs/FDD.md | Risco | Revisão segurança pré-deploy Sofia | TRANSCRICAO | [09:46] Sofia |
+| PRD-CTX-01 | docs/PRD.md | Decisão | Três clientes B2B exigem notificação (Atlas, MaxDistribuição, Nova Cargo) | TRANSCRICAO | [09:00] Marcos |
+| PRD-CTX-02 | docs/PRD.md | Decisão | Risco de churn Atlas sem feature até fim do trimestre | TRANSCRICAO | [09:00] Marcos |
+| PRD-MET-01 | docs/PRD.md | Requisito Não Funcional | Latência de entrega p95 < 10 segundos | TRANSCRICAO | [09:02] Marcos |
+| PRD-MET-02 | docs/PRD.md | Decisão | Meta 3 clientes piloto no go-live | TRANSCRICAO | [09:00] Marcos |
+| PRD-MET-03 | docs/PRD.md | Decisão | Prazo fim de novembro, 3 sprints | TRANSCRICAO | [09:46] Larissa |
+| PRD-FR-01 | docs/PRD.md | Requisito Funcional | Cadastrar webhook POST com secret gerada | TRANSCRICAO | [09:31] Marcos |
+| PRD-FR-02 | docs/PRD.md | Requisito Funcional | Listar webhooks do customer GET | TRANSCRICAO | [09:33] Bruno |
+| PRD-FR-03 | docs/PRD.md | Requisito Funcional | Editar webhook PATCH | TRANSCRICAO | [09:33] Bruno |
+| PRD-FR-04 | docs/PRD.md | Requisito Funcional | Remover webhook DELETE | TRANSCRICAO | [09:33] Bruno |
+| PRD-FR-05 | docs/PRD.md | Requisito Funcional | Notificação outbound em mudança de status | TRANSCRICAO | [09:00] Marcos |
+| PRD-FR-06 | docs/PRD.md | Requisito Funcional | Filtrar eventos por status subscrito na inserção | TRANSCRICAO | [09:34] Bruno |
+| PRD-FR-07 | docs/PRD.md | Requisito Funcional | Histórico últimas 100 entregas | TRANSCRICAO | [09:34] Marcos |
+| PRD-FR-08 | docs/PRD.md | Requisito Funcional | Rotação de secret grace 24h | TRANSCRICAO | [09:21] Sofia |
+| PRD-FR-09 | docs/PRD.md | Requisito Funcional | Replay DLQ restrito a ADMIN com auditoria | TRANSCRICAO | [09:36] Sofia |
+| PRD-FR-10 | docs/PRD.md | Requisito Funcional | Payload enxuto sem items de linha | TRANSCRICAO | [09:43] Diego |
+| PRD-NFR-01 | docs/PRD.md | Requisito Não Funcional | Apenas URLs HTTPS no cadastro | TRANSCRICAO | [09:23] Sofia |
+| PRD-NFR-02 | docs/PRD.md | Requisito Não Funcional | HMAC-SHA256 secret por endpoint | TRANSCRICAO | [09:20] Sofia |
+| PRD-NFR-03 | docs/PRD.md | Requisito Não Funcional | At-least-once com X-Event-Id | TRANSCRICAO | [09:26] Larissa |
+| PRD-NFR-04 | docs/PRD.md | Requisito Não Funcional | 5 tentativas backoff antes de DLQ | TRANSCRICAO | [09:17] Diego |
+| PRD-NFR-05 | docs/PRD.md | Requisito Não Funcional | Payload máximo 64KB sem truncar | TRANSCRICAO | [09:24] Larissa |
+| PRD-NFR-06 | docs/PRD.md | Requisito Não Funcional | CRUD autenticado; replay só ADMIN | TRANSCRICAO | [09:36] Sofia |
+| PRD-OUT-01 | docs/PRD.md | Restrição | Email de alerta fora do escopo v1 | TRANSCRICAO | [09:37] Larissa |
+| PRD-OUT-02 | docs/PRD.md | Restrição | Dashboard visual fora do escopo | TRANSCRICAO | [09:40] Larissa |
+| PRD-OUT-03 | docs/PRD.md | Restrição | Webhooks inbound fora do escopo | TRANSCRICAO | [09:02] Sofia |
+| PRD-OUT-04 | docs/PRD.md | Restrição | Arquivamento outbox 30 dias fora do escopo | TRANSCRICAO | [09:08] Diego |
+| PRD-OUT-05 | docs/PRD.md | Restrição | Rate limiting de saída adiado | TRANSCRICAO | [09:39] Larissa |
+| PRD-RISK-01 | docs/PRD.md | Risco | Atraso no prazo — prob. média, impacto alto | TRANSCRICAO | [09:45] Marcos |
+| PRD-RISK-02 | docs/PRD.md | Risco | Cliente sem deduplicação — prob. média, impacto alto | TRANSCRICAO | [09:25] Sofia |
+| PRD-RISK-03 | docs/PRD.md | Risco | Endpoint offline prolongado — prob. média | TRANSCRICAO | [09:17] Marcos |
+| PRD-RISK-04 | docs/PRD.md | Risco | Vazamento de secret — prob. média, impacto alto | TRANSCRICAO | [09:22] Diego |
+| PRD-DEP-01 | docs/PRD.md | Dependência | Revisão segurança Sofia 2 dias úteis pré-deploy | TRANSCRICAO | [09:46] Sofia |
+| PRD-DEP-02 | docs/PRD.md | Dependência | Integração em changeStatus do módulo pedidos | CODIGO | src/modules/orders/order.service.ts |
+| PRD-ACC-01 | docs/PRD.md | Decisão | Validação E2E com cliente piloto Atlas | TRANSCRICAO | [09:45] Marcos |
+| PRD-TST-01 | docs/PRD.md | Decisão | Regressão em tests/orders.test.ts | CODIGO | tests/orders.test.ts |
