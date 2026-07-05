@@ -66,6 +66,12 @@ function buildNav(files: Array<{ rel: string }>): NavItem[] {
   return nav;
 }
 
+function resolveNavHref(href: string, depth: number): string {
+  if (depth === 0) return href;
+  if (href.startsWith('adrs/')) return href.slice('adrs/'.length);
+  return `${'../'.repeat(depth)}${href}`;
+}
+
 function renderPage(
   title: string,
   bodyHtml: string,
@@ -78,7 +84,7 @@ function renderPage(
   const navHtml = nav
     .map((item) => {
       const group = item.group ? ` data-group="${item.group}"` : '';
-      return `<li${group}><a href="${item.href}">${item.title}</a></li>`;
+      return `<li${group}><a href="${resolveNavHref(item.href, depth)}">${item.title}</a></li>`;
     })
     .join('\n');
 
