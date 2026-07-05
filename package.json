@@ -17,7 +17,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint . --ext .ts",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "docs:generate": "tsx scripts/docs/generate-site.ts",
+    "docs:update": "tsx scripts/docs/update-docs.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -43,6 +45,7 @@
     "@typescript-eslint/parser": "8.13.0",
     "eslint": "8.57.1",
     "eslint-config-prettier": "9.1.0",
+    "marked": "^15.0.7",
     "pino-pretty": "11.3.0",
     "prettier": "3.3.3",
     "prisma": "5.22.0",
