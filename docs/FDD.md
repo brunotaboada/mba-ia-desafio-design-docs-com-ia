@@ -1,4 +1,4 @@
-### FDD: Sistema de Webhooks de Notificação de Pedidos
+# FDD — Sistema de Webhooks de Notificação de Pedidos
 
 Versão: 1.0  
 Data: 07-11-2025  
@@ -8,11 +8,11 @@ Referências: [RFC](./RFC.md) · [ADRs](./adrs/)
 
 ---
 
-### 1. Contexto e motivação técnica
+## Contexto e motivação técnica
 
 O OMS persiste mudanças de status de pedidos em transação (`changeStatus`): atualiza `orders`, insere `order_status_history` e ajusta estoque. Não existe hoje publicação de eventos nem integração outbound. Clientes B2B fazem polling em `GET /orders`, gerando carga e latência na integração.
 
-A feature adiciona notificação **outbound** desacoplada: registro transacional na outbox (mesma transação do status) e entrega HTTP assíncrona por worker separado. Encaixa no [RFC](./RFC.md) e nos [ADRs](./adrs/): outbox ([ADR-001](./adrs/ADR-001-outbox-no-mysql.md)), worker ([ADR-002](./adrs/ADR-002-worker-polling-processo-separado.md)), retry/DLQ ([ADR-003](./adrs/ADR-003-retry-backoff-dlq.md)), HMAC ([ADR-004](./adrs/ADR-004-hmac-sha256-secret-por-endpoint.md)), at-least-once ([ADR-005](./adrs/ADR-005-at-least-once-x-event-id.md)), padrões do projeto ([ADR-006](./adrs/ADR-006-reuso-padroes-projeto.md)), snapshot ([ADR-007](./adrs/ADR-007-payload-snapshot-na-insercao.md)).
+A feature adiciona notificação **outbound** desacoplada: registro transacional na outbox (mesma transação do status) e entrega HTTP assíncrona por worker separado. A solução implementa as decisões do [RFC](./RFC.md) e dos [ADRs](./adrs/): outbox ([ADR-001](./adrs/ADR-001-outbox-no-mysql.md)), worker ([ADR-002](./adrs/ADR-002-worker-polling-processo-separado.md)), retry/DLQ ([ADR-003](./adrs/ADR-003-retry-backoff-dlq.md)), HMAC ([ADR-004](./adrs/ADR-004-hmac-sha256-secret-por-endpoint.md)), at-least-once ([ADR-005](./adrs/ADR-005-at-least-once-x-event-id.md)), padrões do projeto ([ADR-006](./adrs/ADR-006-reuso-padroes-projeto.md)), snapshot ([ADR-007](./adrs/ADR-007-payload-snapshot-na-insercao.md)).
 
 **Atores**
 
@@ -32,10 +32,10 @@ A feature adiciona notificação **outbound** desacoplada: registro transacional
 
 ---
 
-### 2. Objetivos técnicos
+## Objetivos técnicos
 
-- **Latência de entrega:** evento disponível para envio em até **10 segundos** após commit do status (polling 2s + HTTP; SLA [09:02] Marcos).
-- **Consistência:** se o status commitou, existe linha correspondente na outbox na mesma transação (invariante transacional).
+- **Latência de entrega:** evento disponível para envio em até **10 segundos** após commit do status (polling 2s + HTTP).
+- **Consistência:** se o status commitou, existe linha correspondente na outbox na mesma transação.
 - **Resiliência:** até **5 tentativas** com backoff 1m/5m/30m/2h/12h antes de dead letter.
 - **Segurança:** 100% das entregas com HMAC-SHA256 e TLS; secret por endpoint.
 - **Idempotência no consumidor:** 100% das entregas incluem `X-Event-Id` único (semântica at-least-once).
@@ -43,7 +43,7 @@ A feature adiciona notificação **outbound** desacoplada: registro transacional
 
 ---
 
-### 3. Escopo e exclusões
+## Escopo e exclusões
 
 **Incluído**
 
@@ -53,35 +53,38 @@ A feature adiciona notificação **outbound** desacoplada: registro transacional
 - Integração em `OrderService.changeStatus` via `publishWebhookEvent(tx, ...)`.
 - Endpoints autenticados de configuração e histórico de entregas.
 - Endpoint ADMIN de replay de dead letter.
-- Rotação de secret com grace period 24h.
+- Rotação de secret com grace period de 24h.
 
 **Excluído**
 
-- Email de alerta ao cliente após falhas repetidas ([09:37] Larissa).
-- Dashboard visual / painel frontend ([09:40] Larissa).
-- Webhooks inbound (cliente → plataforma) ([09:02] Sofia).
-- Arquivamento automático de outbox após 30 dias ([09:08] Diego).
-- Rate limiting de saída por cliente (questão em aberto no [RFC](./RFC.md)).
-- Multi-worker com ordering global ([09:13] Diego).
+- Email de alerta ao cliente após falhas repetidas.
+- Dashboard visual / painel frontend.
+- Webhooks inbound (cliente para plataforma).
+- Arquivamento automático de outbox após 30 dias.
+- Rate limiting de saída por cliente (adiado; ver [RFC](./RFC.md)).
+- Multi-worker com ordering global (adiado; ver [RFC](./RFC.md)).
 
 ---
 
-### 4. Fluxos detalhados e diagramas
+## Fluxos detalhados
 
-#### 4.1 Fluxo principal: mudança de status → entrega
+### Criação do evento na outbox
 
 1. Cliente da API chama `PATCH /orders/:id/status` (fluxo existente).
 2. `OrderService.changeStatus` inicia transação Prisma.
 3. Valida transição (`order.status.ts`), estoque, atualiza pedido e histórico.
 4. `publishWebhookEvent(tx, order, fromStatus, toStatus)`:
    - Busca webhooks ativos do `customer_id` que assinam `toStatus`.
-   - Se nenhum assinante: retorna sem inserir ([09:34] Bruno).
+   - Se nenhum assinante: retorna sem inserir.
    - Para cada webhook elegível: monta payload snapshot, gera `event_id` (UUID), insere em `webhook_outbox` com status `PENDING`.
-5. Commit da transação.
-6. Worker (loop 2s): seleciona batch de `PENDING` ordenado por `created_at`.
-7. Para cada evento: marca `PROCESSING`, monta request HTTPS, calcula HMAC, envia headers.
-8. Resposta 2xx em até 10s: marca `DELIVERED`, persiste log de entrega.
-9. Falha ou timeout: incrementa tentativa, agenda `next_retry_at` conforme backoff ou move para DLQ após 5ª falha.
+5. Commit da transação (falha na outbox faz rollback completo).
+
+### Processamento pelo worker
+
+1. Worker em loop de 2s seleciona batch de `PENDING` ordenado por `created_at`.
+2. Para cada evento: marca `PROCESSING`, monta request HTTPS, calcula HMAC-SHA256, envia headers.
+3. Resposta 2xx em até 10s: marca `DELIVERED`, persiste log de entrega.
+4. Falha ou timeout: aciona fluxo de retry.
 
 ```mermaid
 sequenceDiagram
@@ -106,27 +109,28 @@ sequenceDiagram
     end
 ```
 
-#### 4.2 Fluxo: retry com backoff
+### Retry
 
 1. Entrega falha (timeout 10s, erro de rede ou status não-2xx).
-2. Worker registra tentativa, `failure_reason` e calcula próximo slot: 1m → 5m → 30m → 2h → 12h.
-3. Status volta a `PENDING` com `next_retry_at` futuro (worker ignora até o horário).
-4. Após 5ª falha: copia para `webhook_dead_letter`, remove da outbox ativa.
+2. Worker registra tentativa, `failure_reason` e calcula próximo slot: 1m, 5m, 30m, 2h, 12h.
+3. Status volta a `PENDING` com `next_retry_at` futuro.
+4. Após 5ª falha: segue para DLQ.
 
-#### 4.3 Fluxo: dead letter e replay
+### DLQ e replay
 
-1. Operador ADMIN chama `POST /admin/webhooks/dead-letter/:id/replay`.
-2. API valida `requireRole('ADMIN')`, loga `userId` e timestamp ([09:36] Sofia).
-3. Recria linha na outbox como `PENDING` (mesmo `event_id` e payload snapshot).
-4. Worker reprocessa; cliente deve deduplicar por `X-Event-Id` se já tiver recebido.
+1. Evento copiado para `webhook_dead_letter`; removido da outbox ativa.
+2. Operador ADMIN chama `POST /api/admin/webhooks/dead-letter/:id/replay`.
+3. API valida `requireRole('ADMIN')`, loga `userId` e timestamp.
+4. Recria linha na outbox como `PENDING` (mesmo `event_id` e payload snapshot).
+5. Worker reprocessa; cliente deduplica por `X-Event-Id` se necessário.
 
-#### 4.4 Fluxo alternativo: rotação de secret
+### Rotação de secret
 
-1. Cliente chama `POST /webhooks/:id/rotate-secret`.
-2. API gera nova secret, mantém anterior válida por 24h ([09:21] Sofia).
-3. Worker assina com secret ativa; durante grace, aceita verificação com qualquer uma das duas no lado do cliente.
+1. Cliente chama `POST /api/webhooks/:id/rotate-secret`.
+2. API gera nova secret; anterior válida por 24h.
+3. Worker assina com secret ativa.
 
-#### 4.5 Estados do evento na outbox
+### Estados do evento na outbox
 
 ```
 PENDING → PROCESSING → DELIVERED
@@ -136,7 +140,7 @@ PENDING → PROCESSING → DELIVERED
 
 ---
 
-### 5. Contratos públicos (assinaturas, endpoints, headers, exemplos)
+## Contratos públicos
 
 Formato de erro da API (padrão existente via `error.middleware.ts`):
 
@@ -149,19 +153,12 @@ Formato de erro da API (padrão existente via `error.middleware.ts`):
 }
 ```
 
-#### Contrato 1: Criar webhook
+### POST /api/webhooks — Criar webhook
 
-- **Tipo:** endpoint
-- **Rota:** `POST /api/webhooks`
-- **Método:** POST
 - **Auth:** Bearer JWT (qualquer role autenticada)
-- **Semântica de status:**
-  - `201` webhook criado; secret retornada **uma única vez** nesta resposta
-  - `400` validação (URL não HTTPS, status inválido)
-  - `401` não autenticado
-  - `404` customer não encontrado
+- **Status:** `201` criado (secret retornada uma única vez) · `400` validação · `401` não autenticado · `404` customer não encontrado
 
-**Exemplo de requisição**
+**Request**
 
 ```json
 {
@@ -171,7 +168,7 @@ Formato de erro da API (padrão existente via `error.middleware.ts`):
 }
 ```
 
-**Exemplo de resposta (201)**
+**Response (201)**
 
 ```json
 {
@@ -185,18 +182,12 @@ Formato de erro da API (padrão existente via `error.middleware.ts`):
 }
 ```
 
-#### Contrato 2: Listar webhooks do customer
+### GET /api/webhooks?customerId={uuid} — Listar webhooks
 
-- **Tipo:** endpoint
-- **Rota:** `GET /api/webhooks?customerId={uuid}`
-- **Método:** GET
 - **Auth:** Bearer JWT
-- **Semântica de status:**
-  - `200` lista (secret **não** retornada)
-  - `400` query inválida
-  - `401` não autenticado
+- **Status:** `200` lista (sem secret) · `400` query inválida · `401` não autenticado
 
-**Exemplo de resposta (200)**
+**Response (200)**
 
 ```json
 {
@@ -213,15 +204,13 @@ Formato de erro da API (padrão existente via `error.middleware.ts`):
 }
 ```
 
-#### Contrato 3: Histórico de entregas
+### GET /api/webhooks/:id/deliveries — Histórico de entregas
 
-- **Tipo:** endpoint
-- **Rota:** `GET /api/webhooks/:id/deliveries`
-- **Método:** GET
 - **Auth:** Bearer JWT
-- **Semântica:** últimos **100** registros ([09:34] Marcos); inclui sucesso/falha, payload, response, tempo de resposta
+- **Status:** `200` últimos 100 registros · `404` webhook não encontrado
+- **Semântica:** sucesso/falha, payload, response, tempo de resposta
 
-**Exemplo de resposta (200)**
+**Response (200)**
 
 ```json
 {
@@ -241,14 +230,12 @@ Formato de erro da API (padrão existente via `error.middleware.ts`):
 }
 ```
 
-#### Contrato 4: Atualizar webhook
+### PATCH /api/webhooks/:id — Atualizar webhook
 
-- **Tipo:** endpoint
-- **Rota:** `PATCH /api/webhooks/:id`
-- **Método:** PATCH
 - **Auth:** Bearer JWT
+- **Status:** `200` atualizado · `400` validação · `404` não encontrado
 
-**Exemplo de requisição**
+**Request**
 
 ```json
 {
@@ -258,7 +245,7 @@ Formato de erro da API (padrão existente via `error.middleware.ts`):
 }
 ```
 
-**Exemplo de resposta (200)**
+**Response (200)**
 
 ```json
 {
@@ -270,14 +257,12 @@ Formato de erro da API (padrão existente via `error.middleware.ts`):
 }
 ```
 
-#### Contrato 5: Replay de dead letter (ADMIN)
+### POST /api/admin/webhooks/dead-letter/:id/replay — Replay DLQ
 
-- **Tipo:** endpoint
-- **Rota:** `POST /api/admin/webhooks/dead-letter/:id/replay`
-- **Método:** POST
-- **Auth:** Bearer JWT com role `ADMIN` ([09:36] Sofia)
+- **Auth:** Bearer JWT com role `ADMIN`
+- **Status:** `202` aceito · `403` sem permissão · `404` DLQ não encontrada
 
-**Exemplo de resposta (202)**
+**Response (202)**
 
 ```json
 {
@@ -289,14 +274,12 @@ Formato de erro da API (padrão existente via `error.middleware.ts`):
 }
 ```
 
-#### Contrato 6: Rotação de secret
+### POST /api/webhooks/:id/rotate-secret — Rotação de secret
 
-- **Tipo:** endpoint
-- **Rota:** `POST /api/webhooks/:id/rotate-secret`
-- **Método:** POST
 - **Auth:** Bearer JWT
+- **Status:** `200` nova secret (grace 24h na anterior) · `404` não encontrado
 
-**Exemplo de resposta (200)**
+**Response (200)**
 
 ```json
 {
@@ -306,24 +289,22 @@ Formato de erro da API (padrão existente via `error.middleware.ts`):
 }
 ```
 
-#### Contrato 7: Entrega outbound (worker → cliente)
+### Entrega outbound (worker para cliente)
 
-- **Tipo:** endpoint (saída)
-- **Método:** POST
-- **URL:** configurada pelo cliente (`https` obrigatório)
-- **Timeout:** 10 segundos ([09:42] Diego)
+- **Método:** POST na URL configurada (`https` obrigatório)
+- **Timeout:** 10 segundos
 
-**Headers enviados**
+**Headers**
 
 | Header | Semântica |
 | --- | --- |
 | `Content-Type` | `application/json` |
-| `X-Event-Id` | UUID único do evento; deduplicação no cliente |
+| `X-Event-Id` | UUID único; deduplicação no cliente |
 | `X-Signature` | HMAC-SHA256 do corpo bruto (hex) |
-| `X-Timestamp` | ISO 8601 do envio; anti-replay opcional no cliente |
-| `X-Webhook-Id` | ID do endpoint cadastrado ([09:44] Sofia) |
+| `X-Timestamp` | ISO 8601 do envio |
+| `X-Webhook-Id` | ID do endpoint cadastrado |
 
-**Exemplo de payload (corpo)**
+**Payload**
 
 ```json
 {
@@ -339,194 +320,162 @@ Formato de erro da API (padrão existente via `error.middleware.ts`):
 }
 ```
 
-Sem `items` no payload ([09:43] Diego). Cliente busca detalhes em `GET /orders/:id` se necessário.
+Sem `items` no payload. Cliente consulta `GET /orders/:id` para detalhes complementares.
 
-#### Contrato interno: publicação na outbox
+### Função interna: publishWebhookEvent
 
-- **Tipo:** function
 - **Assinatura:** `publishWebhookEvent(tx, order, fromStatus, toStatus)`
-- **Contexto:** chamada dentro da transação de `changeStatus` ([09:41] Bruno)
+- **Contexto:** dentro da transação de `changeStatus`
 - **Efeito:** insert condicional em `webhook_outbox`; rollback se falhar
 
 ---
 
-### 6. Erros, exceções e fallback
-
-#### Matriz de erros (`WEBHOOK_*`)
+## Matriz de erros previstos
 
 | Código | HTTP | Condição | Tratamento |
 | --- | --- | --- | --- |
 | `WEBHOOK_NOT_FOUND` | 404 | ID inexistente | `AppError` via middleware |
-| `WEBHOOK_INVALID_URL` | 400 | URL não HTTPS ou malformada | Rejeição no schema Zod |
-| `WEBHOOK_SECRET_REQUIRED` | 500 | Falha interna ao gerar secret | Log + erro genérico ao cliente |
-| `WEBHOOK_PAYLOAD_TOO_LARGE` | 422 | Payload > 64KB na montagem | Não insere na outbox; falha transação se crítico |
-| `WEBHOOK_INACTIVE` | 409 | Operação em webhook desativado | Mensagem clara ao chamador |
-| `WEBHOOK_CUSTOMER_MISMATCH` | 403 | Webhook não pertence ao customer informado | Bloqueio de acesso |
-| `WEBHOOK_DELIVERY_FAILED` | N/A (worker) | Falha HTTP outbound | Retry ou DLQ |
-| `WEBHOOK_DEAD_LETTER_NOT_FOUND` | 404 | ID DLQ inexistente no replay | ADMIN recebe 404 |
+| `WEBHOOK_INVALID_URL` | 400 | URL não HTTPS ou malformada | Validação Zod |
+| `WEBHOOK_SECRET_REQUIRED` | 500 | Falha ao gerar secret | Log + erro ao cliente |
+| `WEBHOOK_PAYLOAD_TOO_LARGE` | 422 | Payload > 64KB | Rejeição na montagem do evento |
+| `WEBHOOK_INACTIVE` | 409 | Webhook desativado | Erro ao chamador |
+| `WEBHOOK_CUSTOMER_MISMATCH` | 403 | Webhook de outro customer | Bloqueio de acesso |
+| `WEBHOOK_DELIVERY_FAILED` | N/A | Falha HTTP outbound (worker) | Retry ou DLQ |
+| `WEBHOOK_DEAD_LETTER_NOT_FOUND` | 404 | ID DLQ inexistente no replay | Erro ao ADMIN |
 | `WEBHOOK_REPLAY_FORBIDDEN` | 403 | Replay sem role ADMIN | `requireRole` |
 
-Classes em `src/modules/webhooks/webhook.errors.ts` estendendo `AppError` / erros HTTP existentes ([09:28] Bruno).
-
-#### Estratégias de resiliência
-
-| Mecanismo | Parâmetro | Fonte |
-| --- | --- | --- |
-| Timeout HTTP outbound | 10s | [09:42] Diego |
-| Tentativas | 5 | [09:16] Larissa |
-| Backoff | 1m, 5m, 30m, 2h, 12h | [09:17] Diego |
-| Fallback | Dead letter + replay manual ADMIN | [09:18] Diego |
-| Circuit breaker | Não implementado na v1 | Hipótese: adiar (não discutido na reunião) |
-
-#### Política de fallback
-
-- Após esgotar retries: evento em `webhook_dead_letter`; **não** há envio alternativo (email/SMS).
-- Replay manual recoloca na outbox; única recuperação automática é retry scheduleado.
-
-#### Invariantes
-
-1. Status de pedido commitado implica evento na outbox para cada webhook assinante do `toStatus`.
-2. `event_id` imutável por linha de outbox; reenvios usam o mesmo `X-Event-Id`.
-3. Secret nunca retornada após criação/rotação (exceto na resposta imediata).
-4. Entregas só para URLs `https`.
+Classes em `src/modules/webhooks/webhook.errors.ts` estendendo `AppError` e erros HTTP existentes.
 
 ---
 
-### 7. Observabilidade
+## Estratégias de resiliência
 
-#### Métricas
+| Mecanismo | Configuração |
+| --- | --- |
+| **Timeout** | 10s por chamada HTTP outbound |
+| **Retries** | 5 tentativas por evento |
+| **Backoff** | 1 min, 5 min, 30 min, 2 h, 12 h entre tentativas |
+| **Fallback** | Dead letter após esgotar retries; replay manual por ADMIN |
 
-| Métrica | Tipo | Descrição |
+**Política de fallback:** não há canal alternativo (email/SMS). Recuperação automática limitada ao retry scheduleado; DLQ exige replay ADMIN.
+
+**Invariantes**
+
+1. Status commitado implica evento na outbox para cada webhook assinante do `toStatus`.
+2. `event_id` imutável; reenvios usam o mesmo `X-Event-Id`.
+3. Secret não retornada após criação/rotação (exceto resposta imediata).
+4. Entregas apenas para URLs `https`.
+
+---
+
+## Observabilidade
+
+### Métricas
+
+| Métrica | Tipo | Uso |
 | --- | --- | --- |
-| `webhook_outbox_pending_total` | gauge | Eventos aguardando processamento |
+| `webhook_outbox_pending_total` | gauge | Fila de eventos pendentes |
 | `webhook_delivery_attempts_total` | counter | Tentativas por resultado (`success`, `failure`, `timeout`) |
-| `webhook_delivery_duration_ms` | histogram | Latência HTTP outbound |
-| `webhook_dlq_total` | gauge | Eventos em dead letter |
-| `webhook_retry_scheduled_total` | counter | Retries agendados por faixa de backoff |
+| `webhook_delivery_duration_ms` | histogram | Latência HTTP outbound (validar SLA < 10s) |
+| `webhook_dlq_total` | gauge | Volume em dead letter |
+| `webhook_retry_scheduled_total` | counter | Retries por faixa de backoff |
 
-> **Nota:** nomes de métricas são proposta de implementação para validar SLAs do RFC; não foram enumerados na transcrição.
+### Logs
 
-#### Logs
+- **Biblioteca:** Pino (`src/shared/logger/index.ts`), padrão do projeto.
+- **Campos:** `eventId`, `webhookId`, `orderId`, `customerId`, `attempt`, `httpStatus`, `durationMs`, `workerId`.
+- **Redação:** secrets e `Authorization` via `redact` existente.
+- **Auditoria:** replay DLQ registra `replayedBy`, `deadLetterId`, `timestamp`.
 
-- **Biblioteca:** Pino (`src/shared/logger/index.ts`), mesmo padrão do projeto ([09:29] Bruno).
-- **Campos estruturados:** `eventId`, `webhookId`, `orderId`, `customerId`, `attempt`, `httpStatus`, `durationMs`, `workerId`.
-- **Redação:** secrets, `Authorization` e corpos com PII seguem `redact` existente.
-- **Auditoria:** replay DLQ loga `replayedBy`, `deadLetterId`, `timestamp` ([09:36] Sofia).
+### Tracing
 
-#### Tracing
+- Span `order.changeStatus` com sub-span `webhook.publish_outbox`.
+- Span `worker.process_batch` e `worker.deliver_webhook` com `event_id`, host da URL e `attempt`.
+- Correlação entre API e worker via `event_id`.
 
-- Span `order.changeStatus` (existente ou estendido): inclui sub-span `webhook.publish_outbox`.
-- Span `worker.process_batch` → `worker.deliver_webhook` com atributos `event_id`, `url` (host only), `attempt`.
-- Amostragem: 100% em desenvolvimento; 10% em produção (hipótese operacional).
+### Alertas mínimos
 
-#### Dashboards e alertas mínimos
-
-- Painel: outbox pending, taxa de falha, tamanho DLQ, p95 `delivery_duration_ms`.
-- Alerta: `webhook_outbox_pending_total` crescente por > 15 min ou `webhook_dlq_total` acima de limiar acordado com operações.
+- `webhook_outbox_pending_total` crescente por mais de 15 minutos.
+- `webhook_dlq_total` acima de limiar operacional.
+- p95 de `webhook_delivery_duration_ms` próximo ao SLA de 10s.
 
 ---
 
-### 8. Dependências e compatibilidade
+## Dependências e compatibilidade
 
-| Componente | Versão mínima | Observações |
+| Componente | Versão | Observações |
 | --- | --- | --- |
-| Node.js | mesma do projeto | Worker e API |
+| Node.js | mesma do projeto | API e worker |
 | MySQL | mesma do projeto | Outbox transacional |
-| Prisma | 5.x (projeto) | `PrismaClient` separado no worker |
-| Express | mesma do projeto | Rotas do módulo webhooks |
-| Pino | mesma do projeto | Logs |
+| Prisma | 5.x | `PrismaClient` separado no worker |
+| Express | mesma do projeto | Rotas do módulo |
+| Pino | mesma do projeto | Logs estruturados |
 | `crypto` (Node) | built-in | HMAC-SHA256 |
 
-**Garantias de compatibilidade**
+**Compatibilidade**
 
-- API de pedidos existente inalterada em contrato público; apenas extensão interna de `changeStatus`.
-- Prefixo de rota `/api` via `buildApiRouter`; webhooks em `/api/webhooks` e `/api/admin/webhooks`.
-- Erros JSON compatíveis com `error.middleware.ts`.
-- Máquina de estados em `order.status.ts` define transições que geram eventos.
+- Contrato público de pedidos inalterado; extensão interna em `changeStatus`.
+- Rotas em `/api/webhooks` e `/api/admin/webhooks` via `buildApiRouter`.
+- Erros JSON no formato `{ error: { code, message, details? } }`.
+- Transições em `order.status.ts` definem eventos elegíveis.
 
 ---
 
-### 9. Critérios de aceite técnicos
+## Critérios de aceite técnicos
 
-- [ ] `changeStatus` insere na outbox na mesma transação; falha de insert faz rollback completo.
-- [ ] Worker roda via `npm run worker`, processo separado da API.
-- [ ] Polling 2s; evento entregue em < 10s em cenário nominal (cliente responde 200 em < 1s).
-- [ ] HMAC-SHA256 verificável pelo cliente; URL `http` rejeitada no cadastro.
-- [ ] `X-Event-Id` presente em toda entrega; reenvio mantém mesmo ID.
-- [ ] Após 5 falhas, evento aparece em DLQ; replay ADMIN recria na outbox.
+- [ ] `changeStatus` insere na outbox na mesma transação; falha faz rollback completo.
+- [ ] Worker via `npm run worker`, processo separado da API.
+- [ ] Polling 2s; entrega em menos de 10s em cenário nominal.
+- [ ] HMAC-SHA256 verificável; URL `http` rejeitada no cadastro.
+- [ ] `X-Event-Id` em toda entrega; reenvio mantém mesmo ID.
+- [ ] Após 5 falhas, evento na DLQ; replay ADMIN recria na outbox.
 - [ ] `GET /webhooks/:id/deliveries` retorna até 100 registros.
-- [ ] Rotação de secret: anterior válida 24h.
-- [ ] Códigos de erro `WEBHOOK_*` retornados conforme matriz.
-- [ ] Logs de replay incluem identificação do operador ADMIN.
-- [ ] Testes de integração cobrem fluxo status → outbox → worker → mock cliente.
+- [ ] Rotação de secret com grace de 24h na anterior.
+- [ ] Códigos `WEBHOOK_*` conforme matriz de erros.
+- [ ] Logs de replay identificam operador ADMIN.
+- [ ] Testes de integração: status → outbox → worker → mock cliente.
 
 ---
 
-### 10. Riscos e mitigação
+## Riscos e mitigação
 
-**Risco 1: Payload excede 64KB**
+**Payload excede 64KB**
 
-- Probabilidade: baixa
-- Impacto: transação de status falha se tratado como erro crítico
-- Mitigação:
-  - Payload enxuto sem items ([09:43] Diego)
-  - Validar tamanho antes do insert; erro `WEBHOOK_PAYLOAD_TOO_LARGE`
-- Plano de contingência: revisar campos do snapshot se ocorrer em produção
+- Probabilidade: baixa · Impacto: falha na publicação do evento
+- Mitigação: payload enxuto sem items; validação pré-insert com `WEBHOOK_PAYLOAD_TOO_LARGE`
+- Contingência: revisar campos do snapshot se ocorrer em produção
 
-**Risco 2: Cliente não deduplica `X-Event-Id`**
+**Cliente não deduplica `X-Event-Id`**
 
-- Probabilidade: média
-- Impacto: processamento duplicado de status no ERP do cliente
-- Mitigação:
-  - Documentação no portal ([09:26] Marcos)
-  - Exemplo de idempotência no guia de integração
-- Plano de contingência: suporte orienta implementação de dedup
+- Probabilidade: média · Impacto: processamento duplicado no ERP do cliente
+- Mitigação: documentação no portal; exemplos de idempotência
+- Contingência: suporte orienta implementação de dedup
 
-**Risco 3: Acúmulo na outbox**
+**Acúmulo na outbox**
 
-- Probabilidade: média
-- Impacto: atraso acima do SLA de 10s
-- Mitigação:
-  - Índices em `status` e `created_at` ([09:08] Diego)
-  - Métrica `webhook_outbox_pending_total` com alerta
-- Plano de contingência: escalar batch do worker; avaliar segundo worker (questão em aberto)
+- Probabilidade: média · Impacto: atraso acima do SLA de 10s
+- Mitigação: índices em `status` e `created_at`; alerta em `webhook_outbox_pending_total`
+- Contingência: aumentar batch do worker; avaliar segundo worker (RFC)
 
-**Risco 4: Vazamento de secret**
+**Vazamento de secret**
 
-- Probabilidade: média
-- Impacto: falsificação de webhooks
-- Mitigação:
-  - Secret por endpoint; rotação 24h; redaction no Pino
-  - Revisão de segurança pré-deploy ([09:46] Sofia)
-- Plano de contingência: rotacionar secret do endpoint afetado
+- Probabilidade: média · Impacto: falsificação de webhooks
+- Mitigação: secret por endpoint; rotação 24h; redaction no Pino; revisão de segurança pré-deploy
+- Contingência: rotacionar secret do endpoint afetado
 
 ---
 
-### 11. Integração com o sistema existente
+## Integração com o sistema existente
 
 | Arquivo | Integração |
 | --- | --- |
-| `src/modules/orders/order.service.ts` | Em `changeStatus`, após atualizar pedido e histórico, chamar `publishWebhookEvent(tx, order, from, to)` dentro da mesma `$transaction`. Falha na publicação aborta a transação. |
-| `src/modules/orders/order.status.ts` | Enum `OrderStatus` e `canTransition` definem quais transições existem; `subscribedStatuses` do webhook filtra quais `toStatus` geram evento. |
-| `src/shared/errors/app-error.ts` | Novas classes `Webhook*Error` estendem `AppError` com `errorCode` prefixado `WEBHOOK_` ([09:28] Bruno). |
-| `src/shared/errors/http-errors.ts` | Reutilizar `NotFoundError`, `ValidationError`, `ForbiddenError` como base; padrão de `errorCode` e `statusCode` alinhado a `InsufficientStockError`. |
-| `src/middlewares/error.middleware.ts` | Sem alteração: serializa `AppError` em `{ error: { code, message, details? } }`. |
-| `src/middlewares/auth.middleware.ts` | `authenticate` em rotas de webhook; `requireRole('ADMIN')` em replay DLQ ([09:36] Larissa). |
-| `src/shared/logger/index.ts` | Worker e API usam `logger` com redaction; eventos de entrega e replay em nível `info`/`warn`. |
-| `src/server.ts` | Referência de bootstrap para `src/worker.ts` (conexão DB, shutdown gracioso). |
-| `src/routes/index.ts` | Registrar `buildWebhookRouter` em `/webhooks` e rotas admin em `/admin/webhooks`. |
-| `prisma/schema.prisma` | Novos models: `Webhook`, `WebhookOutbox`, `WebhookDeadLetter`, `WebhookDelivery`; relação com `Customer` e `OrderStatus`. |
-
----
-
-### Discrepâncias: prompt do curso vs rubrica do desafio
-
-| Tópico | Prompt do curso | Rubrica do desafio | Resolução neste FDD |
-| --- | --- | --- | --- |
-| Seção integração código | Não listada no esqueleto (10 seções) | **Obrigatória** (≥4 arquivos) | Adicionada **seção 11** |
-| Nome do arquivo | Esqueleto genérico | `docs/FDD.md` | Arquivo em `docs/FDD.md` |
-| Entrevista passo a passo | Uma pergunta por vez | Não exigida | Gerado a partir de transcrição + RFC + ADRs |
-| Export JSON | Oferecer ao final | Não exigido | Não incluído (disponível sob demanda) |
-| Travessão "—" | Proibido no prompt | Silencioso | Evitado no texto |
-| Circuit breaker | Listado como opção | Não discutido na reunião | Marcado como não implementado (hipótese) |
-| Métricas/tracing | Exigir detalhe | Métricas, logs e tracing | Métricas/spans como proposta técnica; logs ancorados no Pino da transcrição |
+| `src/modules/orders/order.service.ts` | Em `changeStatus`, após atualizar pedido e histórico, chamar `publishWebhookEvent(tx, order, from, to)` na mesma `$transaction`. Falha aborta a transação. |
+| `src/modules/orders/order.status.ts` | `OrderStatus` e `canTransition` definem transições válidas; `subscribedStatuses` filtra quais `toStatus` geram evento. |
+| `src/shared/errors/app-error.ts` | Classes `Webhook*Error` estendem `AppError` com `errorCode` prefixado `WEBHOOK_`. |
+| `src/shared/errors/http-errors.ts` | Reutilizar padrão de `NotFoundError`, `ValidationError`, `ForbiddenError` como em `InsufficientStockError`. |
+| `src/middlewares/error.middleware.ts` | Sem alteração: serializa `AppError` em JSON padronizado. |
+| `src/middlewares/auth.middleware.ts` | `authenticate` nas rotas de webhook; `requireRole('ADMIN')` no replay DLQ. |
+| `src/shared/logger/index.ts` | Logger Pino com redaction; logs de entrega e replay. |
+| `src/server.ts` | Referência de bootstrap para `src/worker.ts`. |
+| `src/routes/index.ts` | Registrar `buildWebhookRouter` em `/webhooks` e admin em `/admin/webhooks`. |
+| `prisma/schema.prisma` | Models `Webhook`, `WebhookOutbox`, `WebhookDeadLetter`, `WebhookDelivery`. |
