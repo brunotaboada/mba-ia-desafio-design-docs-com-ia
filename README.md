@@ -311,7 +311,7 @@ Tracker — nova linha `FDD-COD-01` com `Fonte = CODIGO` → `src/modules/orders
 
 **Validação:** nenhum documento afirma que `SHIPPED` só transiciona para `DELIVERED`; FDD e ADR-007 mencionam explicitamente `SHIPPED → CANCELLED`.
 
-> **Entrega final:** o patch da fase 2 foi usado apenas para demonstrar o `docs:update`. O arquivo `src/modules/orders/order.status.ts` foi **revertido ao estado original** do repositório base — a Parte 1 é entrega puramente documental e o código da aplicação permanece intocado. O `source_commit` atual em `docs/site/docs-meta.json` reflete o HEAD desta entrega (código intocado).
+> **Entrega final:** o patch da fase 2 foi usado apenas para demonstrar o `docs:update`. O arquivo `src/modules/orders/order.status.ts` foi **revertido ao estado original** do repositório base — a Parte 1 é entrega puramente documental e o código da aplicação permanece intocado. As atualizações em `docs/` (FDD, ADR-007, Tracker com `SHIPPED → CANCELLED`) foram **mantidas** como resultado da demonstração. O `source_commit` em `docs/site/docs-meta.json` permanece ancorado no commit do patch (`af89c168`), conforme a rubrica da Parte 2.
 
 ### Comandos da Parte 2
 
