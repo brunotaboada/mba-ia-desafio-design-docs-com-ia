@@ -4,7 +4,7 @@ const transitions: Readonly<Record<OrderStatus, ReadonlyArray<OrderStatus>>> = {
   [OrderStatus.PENDING]: [OrderStatus.PAID, OrderStatus.CANCELLED],
   [OrderStatus.PAID]: [OrderStatus.PROCESSING, OrderStatus.CANCELLED],
   [OrderStatus.PROCESSING]: [OrderStatus.SHIPPED, OrderStatus.CANCELLED],
-  [OrderStatus.SHIPPED]: [OrderStatus.DELIVERED, OrderStatus.CANCELLED],
+  [OrderStatus.SHIPPED]: [OrderStatus.DELIVERED],
   [OrderStatus.DELIVERED]: [],
   [OrderStatus.CANCELLED]: [],
 };
@@ -32,7 +32,6 @@ export function shouldDebitStock(from: OrderStatus, to: OrderStatus): boolean {
 
 export function shouldReplenishStock(from: OrderStatus, to: OrderStatus): boolean {
   return (
-    to === OrderStatus.CANCELLED &&
-    (from === OrderStatus.PAID || from === OrderStatus.PROCESSING || from === OrderStatus.SHIPPED)
+    to === OrderStatus.CANCELLED && (from === OrderStatus.PAID || from === OrderStatus.PROCESSING)
   );
 }

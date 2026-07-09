@@ -211,7 +211,7 @@ Foram **5 ciclos principais** de geração → revisão → correção:
 │   │   └── ADR-007-payload-snapshot-na-insercao.md
 │   └── site/                 ← HTML + docs-meta.json (Parte 2)
 ├── scripts/docs/             ← gerador e auto-atualização
-├── src/                      ← código de referência (patch fase-2 em order.status.ts)
+├── src/                      ← código de referência (intocado)
 ├── prisma/
 └── tests/
 ```
@@ -310,6 +310,8 @@ FDD — novo exemplo de payload `SHIPPED → CANCELLED` na seção de contratos.
 Tracker — nova linha `FDD-COD-01` com `Fonte = CODIGO` → `src/modules/orders/order.status.ts`.
 
 **Validação:** nenhum documento afirma que `SHIPPED` só transiciona para `DELIVERED`; FDD e ADR-007 mencionam explicitamente `SHIPPED → CANCELLED`.
+
+> **Entrega final:** o patch da fase 2 foi usado apenas para demonstrar o `docs:update`. O arquivo `src/modules/orders/order.status.ts` foi **revertido ao estado original** do repositório base — a Parte 1 é entrega puramente documental e o código da aplicação permanece intocado. O `source_commit` atual em `docs/site/docs-meta.json` reflete o HEAD desta entrega (código intocado).
 
 ### Comandos da Parte 2
 
